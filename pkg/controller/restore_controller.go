@@ -46,7 +46,6 @@ import (
 	"github.com/heptio/velero/pkg/util/collections"
 	kubeutil "github.com/heptio/velero/pkg/util/kube"
 	"github.com/heptio/velero/pkg/util/logging"
-	"github.com/heptio/velero/pkg/volume"
 )
 
 // nonRestorableResources is a blacklist for the restoration process. Any resources
