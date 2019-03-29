@@ -700,6 +700,7 @@ func (ctx *context) restoreResource(resource, namespace, resourcePath string) (a
 		applicableActions = append(applicableActions, action)
 	}
 
+fileLoop:
 	for _, file := range files {
 		fullPath := filepath.Join(resourcePath, file.Name())
 		obj, err := ctx.unmarshal(fullPath)
@@ -847,6 +848,10 @@ func (ctx *context) restoreResource(resource, namespace, resourcePath string) (a
 				continue
 			}
 
+			if executeOutput.SkipRestore {
+				ctx.log.Infof("Skipping restore of %s: %v because a registered plugin discarded it", obj.GroupVersionKind().Kind, name)
+				continue fileLoop
+			}
 			unstructuredObj, ok := executeOutput.UpdatedItem.(*unstructured.Unstructured)
 			if !ok {
 				addToResult(&errs, namespace, fmt.Errorf("%s: unexpected type %T", fullPath, executeOutput.UpdatedItem))
