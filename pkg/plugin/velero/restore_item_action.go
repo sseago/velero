@@ -59,8 +59,7 @@ type RestoreItemActionExecuteOutput struct {
 	AdditionalItems []ResourceIdentifier
 
 	// SkipRestore tells velero to stop executing further actions
-	// on this item, and skip the restore step. When this field's
-	// value is true, AdditionalItems will be ignored.
+	// on this item, and skip the restore step.
 	SkipRestore bool
 }
 
