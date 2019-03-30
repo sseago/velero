@@ -118,10 +118,12 @@ func (s *RestoreItemActionGRPCServer) Execute(ctx context.Context, req *proto.Re
 	// If the plugin implementation returned a nil updateItem (meaning no modifications), reset updatedItem to the
 	// original item.
 	var updatedItemJSON []byte
+	skipRestore := false
 	if executeOutput.UpdatedItem == nil {
 		updatedItemJSON = req.Item
 	} else {
 		updatedItemJSON, err = json.Marshal(executeOutput.UpdatedItem.UnstructuredContent())
+		skipRestore = executeOutput.SkipRestore
 		if err != nil {
 			return nil, newGRPCError(errors.WithStack(err))
 		}
@@ -129,7 +131,7 @@ func (s *RestoreItemActionGRPCServer) Execute(ctx context.Context, req *proto.Re
 
 	res := &proto.RestoreItemActionExecuteResponse{
 		Item:        updatedItemJSON,
-		SkipRestore: executeOutput.SkipRestore,
+		SkipRestore: skipRestore,
 	}
 
 	for _, item := range executeOutput.AdditionalItems {
