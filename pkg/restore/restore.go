@@ -728,7 +728,6 @@ func (ctx *context) restoreResource(resource, namespace, resourcePath string) (a
 
 	groupResource := schema.ParseGroupResource(resource)
 
-fileLoop:
 	for _, file := range files {
 		fullPath := filepath.Join(resourcePath, file.Name())
 		obj, err := ctx.unmarshal(fullPath)
@@ -1156,20 +1155,6 @@ func isCompleted(obj *unstructured.Unstructured, groupResource schema.GroupResou
 	}
 	// Assume any other resource isn't complete and can be restored
 	return false, nil
-}
-
-// abandonItem returns whether or not a RestoreItemAction has decided to skip restore
-// Used to identify whether or not an object should be restored.
-func abandonItem(obj *unstructured.Unstructured) (bool, error) {
-	abandon, found, err := unstructured.NestedBool(obj.UnstructuredContent(), "abandonItem")
-	if err != nil {
-		return false, errors.WithStack(err)
-	}
-	if found {
-		return abandon, nil
-	} else {
-		return false, nil
-	}
 }
 
 // unmarshal reads the specified file, unmarshals the JSON contained within it
