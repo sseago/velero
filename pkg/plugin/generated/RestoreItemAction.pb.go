@@ -60,7 +60,7 @@ func (m *RestoreItemActionExecuteRequest) GetItemFromBackup() []byte {
 type RestoreItemActionExecuteResponse struct {
 	Item            []byte                `protobuf:"bytes,1,opt,name=item,proto3" json:"item,omitempty"`
 	AdditionalItems []*ResourceIdentifier `protobuf:"bytes,2,rep,name=additionalItems" json:"additionalItems,omitempty"`
-	SkipRestore     bool                  `protobuf:"varint,3,opt,name=skipRestore,proto3" json:"skipRestore,omitempty"`
+	SkipRestore     bool                  `protobuf:"varint,3,opt,name=skipRestore" json:"skipRestore,omitempty"`
 }
 
 func (m *RestoreItemActionExecuteResponse) Reset()         { *m = RestoreItemActionExecuteResponse{} }
