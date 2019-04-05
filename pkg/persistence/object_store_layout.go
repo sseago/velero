@@ -56,9 +56,6 @@ func (l *ObjectStoreLayout) GetResticDir() string {
 
 func (l *ObjectStoreLayout) isValidSubdir(name string) bool {
 	_, ok := l.subdirs[name]
-	if !ok {
-		return name == "registry"
-	}
 	return ok
 }
 
