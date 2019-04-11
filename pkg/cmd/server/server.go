@@ -1,5 +1,5 @@
 /*
-Copyright 2017 the Heptio Ark contributors.
+Copyright 2017 the Velero contributors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -614,6 +614,7 @@ func (s *server) runControllers(defaultVolumeSnapshotLocations map[string]string
 			s.sharedInformerFactory.Velero().V1().BackupStorageLocations(),
 			s.sharedInformerFactory.Velero().V1().VolumeSnapshotLocations(),
 			newPluginManager,
+			s.metrics,
 		)
 		wg.Add(1)
 		go func() {
