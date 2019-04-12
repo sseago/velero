@@ -42,6 +42,7 @@ import (
 	"github.com/heptio/velero/pkg/metrics"
 	"github.com/heptio/velero/pkg/persistence"
 	"github.com/heptio/velero/pkg/plugin/clientmgmt"
+	"github.com/heptio/velero/pkg/plugin/velero"
 	"github.com/heptio/velero/pkg/restore"
 	"github.com/heptio/velero/pkg/util/collections"
 	kubeutil "github.com/heptio/velero/pkg/util/kube"
