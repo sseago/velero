@@ -40,6 +40,9 @@ func DaemonSet(namespace string, opts ...podTemplateOption) *appsv1.DaemonSet {
 
 	}
 
+	userID := int64(0)
+	mountPropagationMode := corev1.MountPropagationHostToContainer
+
 	daemonSet := &appsv1.DaemonSet{
 		ObjectMeta: objectMeta(namespace, "restic"),
 		TypeMeta: metav1.TypeMeta{
@@ -55,11 +58,15 @@ func DaemonSet(namespace string, opts ...podTemplateOption) *appsv1.DaemonSet {
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						"name": "restic",
+						"name":      "restic",
+						"component": "velero",
 					},
 				},
 				Spec: corev1.PodSpec{
 					ServiceAccountName: "velero",
+					SecurityContext: &corev1.PodSecurityContext{
+						RunAsUser: &userID,
+					},
 					Volumes: []corev1.Volume{
 						{
 							Name: "host-pods",
@@ -69,16 +76,35 @@ func DaemonSet(namespace string, opts ...podTemplateOption) *appsv1.DaemonSet {
 								},
 							},
 						},
+						{
+							Name: "scratch",
+							VolumeSource: corev1.VolumeSource{
+								EmptyDir: new(corev1.EmptyDirVolumeSource),
+							},
+						},
 					},
 					Containers: []corev1.Container{
 						{
 							Name:            "restic",
 							Image:           c.image,
 							ImagePullPolicy: pullPolicy,
+							Command: []string{
+								"/velero",
+							},
+							Args: []string{
+								"restic",
+								"server",
+							},
+
 							VolumeMounts: []corev1.VolumeMount{
 								{
-									Name:      "host-pods",
-									MountPath: "/host_pods",
+									Name:             "host-pods",
+									MountPath:        "/host_pods",
+									MountPropagation: &mountPropagationMode,
+								},
+								{
+									Name:      "scratch",
+									MountPath: "/scratch",
 								},
 							},
 							Env: []corev1.EnvVar{
@@ -97,6 +123,14 @@ func DaemonSet(namespace string, opts ...podTemplateOption) *appsv1.DaemonSet {
 											FieldPath: "metadata.namespace",
 										},
 									},
+								},
+								{
+									Name:  "VELERO_SCRATCH_DIR",
+									Value: "/scratch",
+								},
+								{
+									Name:  "AZURE_CREDENTIALS_FILE",
+									Value: "/credentials/cloud",
 								},
 								{
 									Name:  "GOOGLE_APPLICATION_CREDENTIALS",
@@ -124,6 +158,14 @@ func DaemonSet(namespace string, opts ...podTemplateOption) *appsv1.DaemonSet {
 						SecretName: "cloud-credentials",
 					},
 				},
+			},
+		)
+
+		daemonSet.Spec.Template.Spec.Containers[0].VolumeMounts = append(
+			daemonSet.Spec.Template.Spec.Containers[0].VolumeMounts,
+			corev1.VolumeMount{
+				Name:      "cloud-credentials",
+				MountPath: "/credentials",
 			},
 		)
 	}

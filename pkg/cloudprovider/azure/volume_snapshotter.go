@@ -76,6 +76,11 @@ func (b *VolumeSnapshotter) Init(config map[string]string) error {
 		return err
 	}
 
+	// load environment vars from $AZURE_CREDENTIALS_FILE, if it exists
+	if err := loadEnv(); err != nil {
+		return err
+	}
+
 	// 1. we need AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_SUBSCRIPTION_ID, AZURE_RESOURCE_GROUP
 	envVars, err := getRequiredValues(os.Getenv, tenantIDEnvVar, clientIDEnvVar, clientSecretEnvVar, subscriptionIDEnvVar, resourceGroupEnvVar)
 	if err != nil {
@@ -129,7 +134,7 @@ func (b *VolumeSnapshotter) Init(config map[string]string) error {
 }
 
 func (b *VolumeSnapshotter) CreateVolumeFromSnapshot(snapshotID, volumeType, volumeAZ string, iops *int64) (string, error) {
-	snapshotIdentifier, err := b.parseSnapshotName(snapshotID)
+	snapshotIdentifier, err := parseFullSnapshotName(snapshotID)
 	if err != nil {
 		return "", err
 	}
@@ -266,7 +271,7 @@ func stringPtr(s string) *string {
 }
 
 func (b *VolumeSnapshotter) DeleteSnapshot(snapshotID string) error {
-	snapshotInfo, err := b.parseSnapshotName(snapshotID)
+	snapshotInfo, err := parseFullSnapshotName(snapshotID)
 	if err != nil {
 		return err
 	}
@@ -305,34 +310,6 @@ func getComputeResourceName(subscription, resourceGroup, resource, name string) 
 
 var snapshotURIRegexp = regexp.MustCompile(
 	`^\/subscriptions\/(?P<subscription>.*)\/resourceGroups\/(?P<resourceGroup>.*)\/providers\/Microsoft.Compute\/snapshots\/(?P<snapshotName>.*)$`)
-
-// parseSnapshotName takes a snapshot name, either fully-qualified or not, and returns
-// a snapshot identifier or an error if the name is not in a valid format. If the name
-// is not fully-qualified, the subscription and resource group are assumed to be the
-// ones that the volume snapshotter is configured with.
-//
-// TODO(1.0) remove this function and replace usage with `parseFullSnapshotName` since
-// we won't support the legacy snapshot name format for 1.0.
-func (b *VolumeSnapshotter) parseSnapshotName(name string) (*snapshotIdentifier, error) {
-	switch {
-	// legacy format - name only (not fully-qualified)
-	case !strings.Contains(name, "/"):
-		return &snapshotIdentifier{
-			subscription: b.subscription,
-			// use the disksResourceGroup here because Velero only
-			// supported storing snapshots in that resource group
-			// when the legacy snapshot format was used.
-			resourceGroup: b.disksResourceGroup,
-			name:          name,
-		}, nil
-	// current format - fully qualified
-	case snapshotURIRegexp.MatchString(name):
-		return parseFullSnapshotName(name)
-	// unrecognized format
-	default:
-		return nil, errors.New("snapshot name is not in a valid format")
-	}
-}
 
 // parseFullSnapshotName takes a fully-qualified snapshot name and returns
 // a snapshot identifier or an error if the snapshot name does not match the

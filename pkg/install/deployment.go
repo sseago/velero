@@ -116,14 +116,26 @@ func Deployment(namespace string, opts ...podTemplateOption) *appsv1beta1.Deploy
 									Name:      "plugins",
 									MountPath: "/plugins",
 								},
+								{
+									Name:      "scratch",
+									MountPath: "/scratch",
+								},
 							},
 							Env: []corev1.EnvVar{
+								{
+									Name:  "VELERO_SCRATCH_DIR",
+									Value: "/scratch",
+								},
 								{
 									Name:  "GOOGLE_APPLICATION_CREDENTIALS",
 									Value: "/credentials/cloud",
 								},
 								{
 									Name:  "AWS_SHARED_CREDENTIALS_FILE",
+									Value: "/credentials/cloud",
+								},
+								{
+									Name:  "AZURE_CREDENTIALS_FILE",
 									Value: "/credentials/cloud",
 								},
 							},
@@ -134,6 +146,12 @@ func Deployment(namespace string, opts ...podTemplateOption) *appsv1beta1.Deploy
 							Name: "plugins",
 							VolumeSource: corev1.VolumeSource{
 								EmptyDir: &corev1.EmptyDirVolumeSource{},
+							},
+						},
+						{
+							Name: "scratch",
+							VolumeSource: corev1.VolumeSource{
+								EmptyDir: new(corev1.EmptyDirVolumeSource),
 							},
 						},
 					},
