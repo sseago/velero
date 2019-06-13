@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -49,6 +50,7 @@ type InstallOptions struct {
 	VolumeSnapshotConfig flag.Map
 	UseRestic            bool
 	Wait                 bool
+	UseVolumeSnapshots   bool
 }
 
 // BindFlags adds command line values to the options struct.
@@ -58,8 +60,10 @@ func (o *InstallOptions) BindFlags(flags *pflag.FlagSet) {
 	flags.StringVar(&o.SecretFile, "secret-file", o.SecretFile, "file containing credentials for backup and volume provider")
 	flags.StringVar(&o.Image, "image", o.Image, "image to use for the Velero and restic server pods. Optional.")
 	flags.StringVar(&o.Prefix, "prefix", o.Prefix, "prefix under which all Velero data should be stored within the bucket. Optional.")
+	flags.StringVar(&o.Namespace, "namespace", o.Namespace, "namespace to install Velero and associated data into. Optional.")
 	flags.Var(&o.BackupStorageConfig, "backup-location-config", "configuration to use for the backup storage location. Format is key1=value1,key2=value2")
 	flags.Var(&o.VolumeSnapshotConfig, "snapshot-location-config", "configuration to use for the volume snapshot location. Format is key1=value1,key2=value2")
+	flags.BoolVar(&o.UseVolumeSnapshots, "use-volume-snapshots", o.UseVolumeSnapshots, "whether or not to create snapshot location automatically. Set to false if you do not plan to create volume snapshots via a storage provider.")
 	flags.BoolVar(&o.RestoreOnly, "restore-only", o.RestoreOnly, "run the server in restore-only mode. Optional.")
 	flags.BoolVar(&o.DryRun, "dry-run", o.DryRun, "generate resources, but don't send them to the cluster. Use with -o. Optional.")
 	flags.BoolVar(&o.UseRestic, "use-restic", o.UseRestic, "create restic deployment. Optional.")
@@ -73,6 +77,8 @@ func NewInstallOptions() *InstallOptions {
 		Image:                install.DefaultImage,
 		BackupStorageConfig:  flag.NewMap(),
 		VolumeSnapshotConfig: flag.NewMap(),
+		// Default to creating a VSL unless we're told otherwise
+		UseVolumeSnapshots: true,
 	}
 }
 
@@ -87,16 +93,17 @@ func (o *InstallOptions) AsVeleroOptions() (*install.VeleroOptions, error) {
 		return nil, err
 	}
 	return &install.VeleroOptions{
-		Namespace:    o.Namespace,
-		Image:        o.Image,
-		ProviderName: o.ProviderName,
-		Bucket:       o.BucketName,
-		Prefix:       o.Prefix,
-		SecretData:   secretData,
-		RestoreOnly:  o.RestoreOnly,
-		UseRestic:    o.UseRestic,
-		BSLConfig:    o.BackupStorageConfig.Data(),
-		VSLConfig:    o.VolumeSnapshotConfig.Data(),
+		Namespace:          o.Namespace,
+		Image:              o.Image,
+		ProviderName:       o.ProviderName,
+		Bucket:             o.BucketName,
+		Prefix:             o.Prefix,
+		SecretData:         secretData,
+		RestoreOnly:        o.RestoreOnly,
+		UseRestic:          o.UseRestic,
+		UseVolumeSnapshots: o.UseVolumeSnapshots,
+		BSLConfig:          o.BackupStorageConfig.Data(),
+		VSLConfig:          o.VolumeSnapshotConfig.Data(),
 	}, nil
 }
 
@@ -177,18 +184,20 @@ func (o *InstallOptions) Run(c *cobra.Command) error {
 	}
 	factory := client.NewDynamicFactory(dynamicClient)
 
+	errorMsg := fmt.Sprintf("\n\nError installing Velero. Use `kubectl logs deploy/velero -n %s` to check the deploy logs", o.Namespace)
+
 	err = install.Install(factory, resources, os.Stdout)
 	if err != nil {
-		return errors.Wrap(err, "\n\nError installing Velero. Use `kubectl logs deploy/velero -n velero` to check the deploy logs")
+		return errors.Wrap(err, errorMsg)
 	}
 
 	if o.Wait {
 		fmt.Println("Waiting for Velero to be ready.")
-		if _, err = install.DeploymentIsReady(factory); err != nil {
-			return errors.Wrap(err, "\n\nError installing Velero. Use `kubectl logs deploy/velero -n velero` to check the deploy logs")
+		if _, err = install.DeploymentIsReady(factory, o.Namespace); err != nil {
+			return errors.Wrap(err, errorMsg)
 		}
 	}
-	fmt.Println("Velero is installed! ⛵ Use 'kubectl logs deployment/velero -n velero' to view the status.")
+	fmt.Printf("Velero is installed! ⛵ Use 'kubectl logs deployment/velero -n %s' to view the status.\n", o.Namespace)
 	return nil
 }
 
@@ -205,6 +214,13 @@ func (o *InstallOptions) Validate(c *cobra.Command, args []string, f client.Fact
 
 	if o.BucketName == "" {
 		return errors.New("--bucket is required")
+	}
+
+	// Our main 3 providers don't support bucket names starting with a dash, and a bucket name starting with one
+	// can indicate that an environment variable was left blank.
+	// This case will help catch that error
+	if strings.HasPrefix(o.BucketName, "-") {
+		return errors.Errorf("Bucket names cannot begin with a dash. Bucket name was: %s", o.BucketName)
 	}
 
 	if o.ProviderName == "" {

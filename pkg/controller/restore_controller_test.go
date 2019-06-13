@@ -1,5 +1,5 @@
 /*
-Copyright 2017 the Velero contributors.
+Copyright 2017, 2019 the Velero contributors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ import (
 	"github.com/heptio/velero/pkg/plugin/clientmgmt"
 	pluginmocks "github.com/heptio/velero/pkg/plugin/mocks"
 	"github.com/heptio/velero/pkg/plugin/velero"
-	"github.com/heptio/velero/pkg/restore"
+	pkgrestore "github.com/heptio/velero/pkg/restore"
 	velerotest "github.com/heptio/velero/pkg/util/test"
 	"github.com/heptio/velero/pkg/volume"
 )
@@ -300,6 +300,7 @@ func TestProcessQueueItem(t *testing.T) {
 			restorerError:         errors.New("blarg"),
 			expectedErr:           false,
 			expectedPhase:         string(api.RestorePhaseInProgress),
+			expectedFinalPhase:    string(api.RestorePhasePartiallyFailed),
 			expectedRestoreErrors: 1,
 			expectedRestorerCall:  NewRestore("foo", "bar", "backup-1", "ns-1", "", api.RestorePhaseInProgress).Restore,
 		},
@@ -471,7 +472,7 @@ func TestProcessQueueItem(t *testing.T) {
 				sharedInformers.Velero().V1().Backups().Informer().GetStore().Add(test.backup)
 			}
 
-			var warnings, errors api.RestoreResult
+			var warnings, errors pkgrestore.Result
 			if test.restorerError != nil {
 				errors.Namespaces = map[string][]string{"ns-1": {test.restorerError.Error()}}
 			}
@@ -595,7 +596,7 @@ func TestProcessQueueItem(t *testing.T) {
 			if test.expectedFinalPhase != "" {
 				expected = Patch{
 					Status: StatusPatch{
-						Phase:  api.RestorePhaseCompleted,
+						Phase:  api.RestorePhase(test.expectedFinalPhase),
 						Errors: test.expectedRestoreErrors,
 					},
 				}
@@ -817,11 +818,11 @@ func (r *fakeRestorer) Restore(
 	backupReader io.Reader,
 	actions []velero.RestoreItemAction,
 	snapshotLocationLister listers.VolumeSnapshotLocationLister,
-	volumeSnapshotterGetter restore.VolumeSnapshotterGetter,
-) (api.RestoreResult, api.RestoreResult) {
+	volumeSnapshotterGetter pkgrestore.VolumeSnapshotterGetter,
+) (pkgrestore.Result, pkgrestore.Result) {
 	res := r.Called(log, restore, backup, backupReader, actions)
 
 	r.calledWithArg = *restore
 
-	return res.Get(0).(api.RestoreResult), res.Get(1).(api.RestoreResult)
+	return res.Get(0).(pkgrestore.Result), res.Get(1).(pkgrestore.Result)
 }

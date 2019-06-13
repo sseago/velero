@@ -28,22 +28,27 @@ type ServerMetrics struct {
 }
 
 const (
-	metricNamespace              = "velero"
-	backupTarballSizeBytesGauge  = "backup_tarball_size_bytes"
-	backupAttemptTotal           = "backup_attempt_total"
-	backupSuccessTotal           = "backup_success_total"
-	backupFailureTotal           = "backup_failure_total"
-	backupDurationSeconds        = "backup_duration_seconds"
-	backupDeletionAttemptTotal   = "backup_deletion_attempt_total"
-	backupDeletionSuccessTotal   = "backup_deletion_success_total"
-	backupDeletionFailureTotal   = "backup_deletion_failure_total"
-	restoreAttemptTotal          = "restore_attempt_total"
-	restoreValidationFailedTotal = "restore_validation_failed_total"
-	restoreSuccessTotal          = "restore_success_total"
-	restoreFailedTotal           = "restore_failed_total"
-	volumeSnapshotAttemptTotal   = "volume_snapshot_attempt_total"
-	volumeSnapshotSuccessTotal   = "volume_snapshot_success_total"
-	volumeSnapshotFailureTotal   = "volume_snapshot_failure_total"
+	metricNamespace               = "velero"
+	backupTarballSizeBytesGauge   = "backup_tarball_size_bytes"
+	backupTotal                   = "backup_total"
+	backupAttemptTotal            = "backup_attempt_total"
+	backupSuccessTotal            = "backup_success_total"
+	backupPartialFailureTotal     = "backup_partial_failure_total"
+	backupFailureTotal            = "backup_failure_total"
+	backupDurationSeconds         = "backup_duration_seconds"
+	backupDeletionAttemptTotal    = "backup_deletion_attempt_total"
+	backupDeletionSuccessTotal    = "backup_deletion_success_total"
+	backupDeletionFailureTotal    = "backup_deletion_failure_total"
+	backupLastSuccessfulTimestamp = "backup_last_successful_timestamp"
+	restoreTotal                  = "restore_total"
+	restoreAttemptTotal           = "restore_attempt_total"
+	restoreValidationFailedTotal  = "restore_validation_failed_total"
+	restoreSuccessTotal           = "restore_success_total"
+	restorePartialFailureTotal    = "restore_partial_failure_total"
+	restoreFailedTotal            = "restore_failed_total"
+	volumeSnapshotAttemptTotal    = "volume_snapshot_attempt_total"
+	volumeSnapshotSuccessTotal    = "volume_snapshot_success_total"
+	volumeSnapshotFailureTotal    = "volume_snapshot_failure_total"
 
 	scheduleLabel   = "schedule"
 	backupNameLabel = "backupName"
@@ -63,6 +68,21 @@ func NewServerMetrics() *ServerMetrics {
 				},
 				[]string{scheduleLabel},
 			),
+			backupLastSuccessfulTimestamp: prometheus.NewGaugeVec(
+				prometheus.GaugeOpts{
+					Namespace: metricNamespace,
+					Name:      backupLastSuccessfulTimestamp,
+					Help:      "Last time a backup ran successfully, Unix timestamp in seconds",
+				},
+				[]string{scheduleLabel},
+			),
+			backupTotal: prometheus.NewGauge(
+				prometheus.GaugeOpts{
+					Namespace: metricNamespace,
+					Name:      backupTotal,
+					Help:      "Current number of existent backups",
+				},
+			),
 			backupAttemptTotal: prometheus.NewCounterVec(
 				prometheus.CounterOpts{
 					Namespace: metricNamespace,
@@ -76,6 +96,14 @@ func NewServerMetrics() *ServerMetrics {
 					Namespace: metricNamespace,
 					Name:      backupSuccessTotal,
 					Help:      "Total number of successful backups",
+				},
+				[]string{scheduleLabel},
+			),
+			backupPartialFailureTotal: prometheus.NewCounterVec(
+				prometheus.CounterOpts{
+					Namespace: metricNamespace,
+					Name:      backupPartialFailureTotal,
+					Help:      "Total number of partially failed backups",
 				},
 				[]string{scheduleLabel},
 			),
@@ -130,6 +158,13 @@ func NewServerMetrics() *ServerMetrics {
 				},
 				[]string{scheduleLabel},
 			),
+			restoreTotal: prometheus.NewGauge(
+				prometheus.GaugeOpts{
+					Namespace: metricNamespace,
+					Name:      restoreTotal,
+					Help:      "Current number of existent restores",
+				},
+			),
 			restoreAttemptTotal: prometheus.NewCounterVec(
 				prometheus.CounterOpts{
 					Namespace: metricNamespace,
@@ -143,6 +178,14 @@ func NewServerMetrics() *ServerMetrics {
 					Namespace: metricNamespace,
 					Name:      restoreSuccessTotal,
 					Help:      "Total number of successful restores",
+				},
+				[]string{scheduleLabel},
+			),
+			restorePartialFailureTotal: prometheus.NewCounterVec(
+				prometheus.CounterOpts{
+					Namespace: metricNamespace,
+					Name:      restorePartialFailureTotal,
+					Help:      "Total number of partially failed restores",
 				},
 				[]string{scheduleLabel},
 			),
@@ -205,6 +248,9 @@ func (m *ServerMetrics) InitSchedule(scheduleName string) {
 	if c, ok := m.metrics[backupSuccessTotal].(*prometheus.CounterVec); ok {
 		c.WithLabelValues(scheduleName).Set(0)
 	}
+	if c, ok := m.metrics[backupPartialFailureTotal].(*prometheus.CounterVec); ok {
+		c.WithLabelValues(scheduleName).Set(0)
+	}
 	if c, ok := m.metrics[backupFailureTotal].(*prometheus.CounterVec); ok {
 		c.WithLabelValues(scheduleName).Set(0)
 	}
@@ -218,6 +264,9 @@ func (m *ServerMetrics) InitSchedule(scheduleName string) {
 		c.WithLabelValues(scheduleName).Set(0)
 	}
 	if c, ok := m.metrics[restoreAttemptTotal].(*prometheus.CounterVec); ok {
+		c.WithLabelValues(scheduleName).Set(0)
+	}
+	if c, ok := m.metrics[restorePartialFailureTotal].(*prometheus.CounterVec); ok {
 		c.WithLabelValues(scheduleName).Set(0)
 	}
 	if c, ok := m.metrics[restoreFailedTotal].(*prometheus.CounterVec); ok {
@@ -247,6 +296,20 @@ func (m *ServerMetrics) SetBackupTarballSizeBytesGauge(backupSchedule string, si
 	}
 }
 
+// SetBackupLastSuccessfulTimestamp records the last time a backup ran successfully, Unix timestamp in seconds
+func (m *ServerMetrics) SetBackupLastSuccessfulTimestamp(backupSchedule string) {
+	if g, ok := m.metrics[backupLastSuccessfulTimestamp].(*prometheus.GaugeVec); ok {
+		g.WithLabelValues(backupSchedule).Set(float64(time.Now().Unix()))
+	}
+}
+
+// SetBackupTotal records the current number of existent backups.
+func (m *ServerMetrics) SetBackupTotal(numberOfBackups int64) {
+	if g, ok := m.metrics[backupTotal].(prometheus.Gauge); ok {
+		g.Set(float64(numberOfBackups))
+	}
+}
+
 // RegisterBackupAttempt records an backup attempt.
 func (m *ServerMetrics) RegisterBackupAttempt(backupSchedule string) {
 	if c, ok := m.metrics[backupAttemptTotal].(*prometheus.CounterVec); ok {
@@ -257,6 +320,14 @@ func (m *ServerMetrics) RegisterBackupAttempt(backupSchedule string) {
 // RegisterBackupSuccess records a successful completion of a backup.
 func (m *ServerMetrics) RegisterBackupSuccess(backupSchedule string) {
 	if c, ok := m.metrics[backupSuccessTotal].(*prometheus.CounterVec); ok {
+		c.WithLabelValues(backupSchedule).Inc()
+	}
+	m.SetBackupLastSuccessfulTimestamp(backupSchedule)
+}
+
+// RegisterBackupPartialFailure records a partially failed backup.
+func (m *ServerMetrics) RegisterBackupPartialFailure(backupSchedule string) {
+	if c, ok := m.metrics[backupPartialFailureTotal].(*prometheus.CounterVec); ok {
 		c.WithLabelValues(backupSchedule).Inc()
 	}
 }
@@ -302,6 +373,13 @@ func toSeconds(d time.Duration) float64 {
 	return float64(d / time.Second)
 }
 
+// SetRestoreTotal records the current number of existent restores.
+func (m *ServerMetrics) SetRestoreTotal(numberOfRestores int64) {
+	if g, ok := m.metrics[restoreTotal].(prometheus.Gauge); ok {
+		g.Set(float64(numberOfRestores))
+	}
+}
+
 // RegisterRestoreAttempt records an attempt to restore a backup.
 func (m *ServerMetrics) RegisterRestoreAttempt(backupSchedule string) {
 	if c, ok := m.metrics[restoreAttemptTotal].(*prometheus.CounterVec); ok {
@@ -312,6 +390,13 @@ func (m *ServerMetrics) RegisterRestoreAttempt(backupSchedule string) {
 // RegisterRestoreSuccess records a successful (maybe partial) completion of a restore.
 func (m *ServerMetrics) RegisterRestoreSuccess(backupSchedule string) {
 	if c, ok := m.metrics[restoreSuccessTotal].(*prometheus.CounterVec); ok {
+		c.WithLabelValues(backupSchedule).Inc()
+	}
+}
+
+// RegisterRestorePartialFailure records a restore that partially failed.
+func (m *ServerMetrics) RegisterRestorePartialFailure(backupSchedule string) {
+	if c, ok := m.metrics[restorePartialFailureTotal].(*prometheus.CounterVec); ok {
 		c.WithLabelValues(backupSchedule).Inc()
 	}
 }

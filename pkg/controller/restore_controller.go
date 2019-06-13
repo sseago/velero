@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"sort"
+	"time"
 
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/pkg/errors"
@@ -42,7 +43,7 @@ import (
 	"github.com/heptio/velero/pkg/metrics"
 	"github.com/heptio/velero/pkg/persistence"
 	"github.com/heptio/velero/pkg/plugin/clientmgmt"
-	"github.com/heptio/velero/pkg/restore"
+	pkgrestore "github.com/heptio/velero/pkg/restore"
 	"github.com/heptio/velero/pkg/util/collections"
 	kubeutil "github.com/heptio/velero/pkg/util/kube"
 	"github.com/heptio/velero/pkg/util/logging"
@@ -57,18 +58,15 @@ var nonRestorableResources = []string{
 
 	// Don't ever restore backups - if appropriate, they'll be synced in from object storage.
 	// https://github.com/heptio/velero/issues/622
-	"backups.ark.heptio.com",
 	"backups.velero.io",
 
 	// Restores are cluster-specific, and don't have value moving across clusters.
 	// https://github.com/heptio/velero/issues/622
-	"restores.ark.heptio.com",
 	"restores.velero.io",
 
 	// Restic repositories are automatically managed by Velero and will be automatically
 	// created as needed if they don't exist.
 	// https://github.com/heptio/velero/issues/1113
-	"resticrepositories.ark.heptio.com",
 	"resticrepositories.velero.io",
 }
 
@@ -78,7 +76,7 @@ type restoreController struct {
 	namespace              string
 	restoreClient          velerov1client.RestoresGetter
 	backupClient           velerov1client.BackupsGetter
-	restorer               restore.Restorer
+	restorer               pkgrestore.Restorer
 	backupLister           listers.BackupLister
 	restoreLister          listers.RestoreLister
 	backupLocationLister   listers.BackupStorageLocationLister
@@ -96,7 +94,7 @@ func NewRestoreController(
 	restoreInformer informers.RestoreInformer,
 	restoreClient velerov1client.RestoresGetter,
 	backupClient velerov1client.BackupsGetter,
-	restorer restore.Restorer,
+	restorer pkgrestore.Restorer,
 	backupInformer informers.BackupInformer,
 	backupLocationInformer informers.BackupStorageLocationInformer,
 	snapshotLocationInformer informers.VolumeSnapshotLocationInformer,
@@ -133,6 +131,8 @@ func NewRestoreController(
 		backupLocationInformer.Informer().HasSynced,
 		snapshotLocationInformer.Informer().HasSynced,
 	)
+	c.resyncFunc = c.resync
+	c.resyncPeriod = time.Minute
 
 	restoreInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
@@ -161,6 +161,15 @@ func NewRestoreController(
 	)
 
 	return c
+}
+
+func (c *restoreController) resync() {
+	restores, err := c.restoreLister.List(labels.Everything())
+	if err != nil {
+		c.logger.Error(err, "Error computing restore_total metric")
+	} else {
+		c.metrics.SetRestoreTotal(int64(len(restores)))
+	}
 }
 
 func (c *restoreController) processQueueItem(key string) error {
@@ -247,6 +256,10 @@ func (c *restoreController) processRestore(restore *api.Restore) error {
 		restore.Status.Phase = api.RestorePhaseFailed
 		restore.Status.FailureReason = err.Error()
 		c.metrics.RegisterRestoreFailed(backupScheduleName)
+	} else if restore.Status.Errors > 0 {
+		c.logger.Debug("Restore partially failed")
+		restore.Status.Phase = api.RestorePhasePartiallyFailed
+		c.metrics.RegisterRestorePartialFailure(backupScheduleName)
 	} else {
 		c.logger.Debug("Restore completed")
 		restore.Status.Phase = api.RestorePhaseCompleted
@@ -449,7 +462,7 @@ func (c *restoreController) runValidatedRestore(restore *api.Restore, info backu
 		restore.Status.Errors += len(e)
 	}
 
-	m := map[string]api.RestoreResult{
+	m := map[string]pkgrestore.Result{
 		"warnings": restoreWarnings,
 		"errors":   restoreErrors,
 	}
@@ -461,7 +474,7 @@ func (c *restoreController) runValidatedRestore(restore *api.Restore, info backu
 	return nil
 }
 
-func putResults(restore *api.Restore, results map[string]api.RestoreResult, backupStore persistence.BackupStore, log logrus.FieldLogger) error {
+func putResults(restore *api.Restore, results map[string]pkgrestore.Result, backupStore persistence.BackupStore, log logrus.FieldLogger) error {
 	buf := new(bytes.Buffer)
 	gzw := gzip.NewWriter(buf)
 	defer gzw.Close()

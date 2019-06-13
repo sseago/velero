@@ -28,8 +28,16 @@ import (
 	"github.com/heptio/velero/pkg/buildinfo"
 )
 
+// Use "latest" if the build process didn't supply a version
+func imageVersion() string {
+	if buildinfo.Version == "" {
+		return "latest"
+	}
+	return buildinfo.Version
+}
+
 // DefaultImage is the default image to use for the Velero deployment and restic daemonset containers.
-var DefaultImage = "gcr.io/heptio-images/velero:" + buildinfo.Version
+var DefaultImage = "gcr.io/heptio-images/velero:" + imageVersion()
 
 func labels() map[string]string {
 	return map[string]string{
@@ -167,16 +175,17 @@ func appendUnstructured(list *unstructured.UnstructuredList, obj runtime.Object)
 }
 
 type VeleroOptions struct {
-	Namespace    string
-	Image        string
-	ProviderName string
-	Bucket       string
-	Prefix       string
-	SecretData   []byte
-	RestoreOnly  bool
-	UseRestic    bool
-	BSLConfig    map[string]string
-	VSLConfig    map[string]string
+	Namespace          string
+	Image              string
+	ProviderName       string
+	Bucket             string
+	Prefix             string
+	SecretData         []byte
+	RestoreOnly        bool
+	UseRestic          bool
+	UseVolumeSnapshots bool
+	BSLConfig          map[string]string
+	VSLConfig          map[string]string
 }
 
 // AllResources returns a list of all resources necessary to install Velero, in the appropriate order, into a Kubernetes cluster.
@@ -205,8 +214,11 @@ func AllResources(o *VeleroOptions) (*unstructured.UnstructuredList, error) {
 	bsl := BackupStorageLocation(o.Namespace, o.ProviderName, o.Bucket, o.Prefix, o.BSLConfig)
 	appendUnstructured(resources, bsl)
 
-	vsl := VolumeSnapshotLocation(o.Namespace, o.ProviderName, o.VSLConfig)
-	appendUnstructured(resources, vsl)
+	// A snapshot location may not be desirable for users relying on restic
+	if o.UseVolumeSnapshots {
+		vsl := VolumeSnapshotLocation(o.Namespace, o.ProviderName, o.VSLConfig)
+		appendUnstructured(resources, vsl)
+	}
 
 	deploy := Deployment(o.Namespace,
 		WithImage(o.Image),

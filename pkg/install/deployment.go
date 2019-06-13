@@ -70,7 +70,7 @@ func WithRestoreOnly() podTemplateOption {
 func Deployment(namespace string, opts ...podTemplateOption) *appsv1beta1.Deployment {
 	// TODO: Add support for server args
 	c := &podTemplateConfig{
-		image: "gcr.io/heptio-images/velero:latest",
+		image: DefaultImage,
 	}
 
 	for _, opt := range opts {
@@ -84,6 +84,9 @@ func Deployment(namespace string, opts ...podTemplateOption) *appsv1beta1.Deploy
 
 	}
 
+	containerLabels := labels()
+	containerLabels["deploy"] = "velero"
+
 	deployment := &appsv1beta1.Deployment{
 		ObjectMeta: objectMeta(namespace, "velero"),
 		TypeMeta: metav1.TypeMeta{
@@ -91,9 +94,10 @@ func Deployment(namespace string, opts ...podTemplateOption) *appsv1beta1.Deploy
 			APIVersion: appsv1beta1.SchemeGroupVersion.String(),
 		},
 		Spec: appsv1beta1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"deploy": "velero"}},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels:      labels(),
+					Labels:      containerLabels,
 					Annotations: podAnnotations(),
 				},
 				Spec: corev1.PodSpec{
