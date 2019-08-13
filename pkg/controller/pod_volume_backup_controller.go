@@ -1,5 +1,5 @@
 /*
-Copyright 2018 the Velero contributors.
+Copyright 2018, 2019 the Velero contributors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import (
 	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/clock"
 	corev1informers "k8s.io/client-go/informers/core/v1"
 	corev1listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -50,11 +51,13 @@ type podVolumeBackupController struct {
 	secretLister          corev1listers.SecretLister
 	podLister             corev1listers.PodLister
 	pvcLister             corev1listers.PersistentVolumeClaimLister
+	pvLister              corev1listers.PersistentVolumeLister
 	backupLocationLister  listers.BackupStorageLocationLister
 	nodeName              string
 
 	processBackupFunc func(*velerov1api.PodVolumeBackup) error
 	fileSystem        filesystem.Interface
+	clock             clock.Clock
 }
 
 // NewPodVolumeBackupController creates a new pod volume backup controller.
@@ -65,6 +68,7 @@ func NewPodVolumeBackupController(
 	podInformer cache.SharedIndexInformer,
 	secretInformer cache.SharedIndexInformer,
 	pvcInformer corev1informers.PersistentVolumeClaimInformer,
+	pvInformer corev1informers.PersistentVolumeInformer,
 	backupLocationInformer informers.BackupStorageLocationInformer,
 	nodeName string,
 ) Interface {
@@ -75,10 +79,12 @@ func NewPodVolumeBackupController(
 		podLister:             corev1listers.NewPodLister(podInformer.GetIndexer()),
 		secretLister:          corev1listers.NewSecretLister(secretInformer.GetIndexer()),
 		pvcLister:             pvcInformer.Lister(),
+		pvLister:              pvInformer.Lister(),
 		backupLocationLister:  backupLocationInformer.Lister(),
 		nodeName:              nodeName,
 
 		fileSystem: filesystem.NewFileSystem(),
+		clock:      &clock.RealClock{},
 	}
 
 	c.syncHandler = c.processQueueItem
@@ -173,9 +179,12 @@ func (c *podVolumeBackupController) processBackup(req *velerov1api.PodVolumeBack
 	var err error
 
 	// update status to InProgress
-	req, err = c.patchPodVolumeBackup(req, updatePhaseFunc(velerov1api.PodVolumeBackupPhaseInProgress))
+	req, err = c.patchPodVolumeBackup(req, func(r *velerov1api.PodVolumeBackup) {
+		r.Status.Phase = velerov1api.PodVolumeBackupPhaseInProgress
+		r.Status.StartTimestamp.Time = c.clock.Now()
+	})
 	if err != nil {
-		log.WithError(err).Error("Error setting phase to InProgress")
+		log.WithError(err).Error("Error setting PodVolumeBackup StartTimestamp and phase to InProgress")
 		return errors.WithStack(err)
 	}
 
@@ -185,7 +194,7 @@ func (c *podVolumeBackupController) processBackup(req *velerov1api.PodVolumeBack
 		return c.fail(req, errors.Wrap(err, "error getting pod").Error(), log)
 	}
 
-	volumeDir, err := kube.GetVolumeDirectory(pod, req.Spec.Volume, c.pvcLister)
+	volumeDir, err := kube.GetVolumeDirectory(pod, req.Spec.Volume, c.pvcLister, c.pvLister)
 	if err != nil {
 		log.WithError(err).Error("Error getting volume directory name")
 		return c.fail(req, errors.Wrap(err, "error getting volume directory name").Error(), log)
@@ -228,26 +237,38 @@ func (c *podVolumeBackupController) processBackup(req *velerov1api.PodVolumeBack
 
 	var stdout, stderr string
 
+	var emptySnapshot bool
 	if stdout, stderr, err = veleroexec.RunCommand(resticCmd.Cmd()); err != nil {
-		log.WithError(errors.WithStack(err)).Errorf("Error running command=%s, stdout=%s, stderr=%s", resticCmd.String(), stdout, stderr)
-		return c.fail(req, fmt.Sprintf("error running restic backup, stderr=%s: %s", stderr, err.Error()), log)
+		if strings.Contains(stderr, "snapshot is empty") {
+			emptySnapshot = true
+		} else {
+			log.WithError(errors.WithStack(err)).Errorf("Error running command=%s, stdout=%s, stderr=%s", resticCmd.String(), stdout, stderr)
+			return c.fail(req, fmt.Sprintf("error running restic backup, stderr=%s: %s", stderr, err.Error()), log)
+		}
 	}
 	log.Debugf("Ran command=%s, stdout=%s, stderr=%s", resticCmd.String(), stdout, stderr)
 
-	snapshotID, err := restic.GetSnapshotID(req.Spec.RepoIdentifier, file, req.Spec.Tags, env)
-	if err != nil {
-		log.WithError(err).Error("Error getting SnapshotID")
-		return c.fail(req, errors.Wrap(err, "error getting snapshot id").Error(), log)
+	var snapshotID string
+	if !emptySnapshot {
+		snapshotID, err = restic.GetSnapshotID(req.Spec.RepoIdentifier, file, req.Spec.Tags, env)
+		if err != nil {
+			log.WithError(err).Error("Error getting SnapshotID")
+			return c.fail(req, errors.Wrap(err, "error getting snapshot id").Error(), log)
+		}
 	}
 
 	// update status to Completed with path & snapshot id
 	req, err = c.patchPodVolumeBackup(req, func(r *velerov1api.PodVolumeBackup) {
 		r.Status.Path = path
-		r.Status.SnapshotID = snapshotID
 		r.Status.Phase = velerov1api.PodVolumeBackupPhaseCompleted
+		r.Status.SnapshotID = snapshotID
+		r.Status.CompletionTimestamp.Time = c.clock.Now()
+		if emptySnapshot {
+			r.Status.Message = "volume was empty so no snapshot was taken"
+		}
 	})
 	if err != nil {
-		log.WithError(err).Error("Error setting phase to Completed")
+		log.WithError(err).Error("Error setting PodVolumeBackup phase to Completed")
 		return err
 	}
 
@@ -289,17 +310,12 @@ func (c *podVolumeBackupController) fail(req *velerov1api.PodVolumeBackup, msg s
 	if _, err := c.patchPodVolumeBackup(req, func(r *velerov1api.PodVolumeBackup) {
 		r.Status.Phase = velerov1api.PodVolumeBackupPhaseFailed
 		r.Status.Message = msg
+		r.Status.CompletionTimestamp.Time = c.clock.Now()
 	}); err != nil {
-		log.WithError(err).Error("Error setting phase to Failed")
+		log.WithError(err).Error("Error setting PodVolumeBackup phase to Failed")
 		return err
 	}
 	return nil
-}
-
-func updatePhaseFunc(phase velerov1api.PodVolumeBackupPhase) func(r *velerov1api.PodVolumeBackup) {
-	return func(r *velerov1api.PodVolumeBackup) {
-		r.Status.Phase = phase
-	}
 }
 
 func singlePathMatch(path string) (string, error) {

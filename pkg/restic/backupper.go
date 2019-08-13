@@ -36,7 +36,7 @@ import (
 // Backupper can execute restic backups of volumes in a pod.
 type Backupper interface {
 	// BackupPodVolumes backs up all annotated volumes in a pod.
-	BackupPodVolumes(backup *velerov1api.Backup, pod *corev1api.Pod, log logrus.FieldLogger) (map[string]string, []error)
+	BackupPodVolumes(backup *velerov1api.Backup, pod *corev1api.Pod, log logrus.FieldLogger) ([]*velerov1api.PodVolumeBackup, []error)
 }
 
 type backupper struct {
@@ -96,7 +96,7 @@ func resultsKey(ns, name string) string {
 	return fmt.Sprintf("%s/%s", ns, name)
 }
 
-func (b *backupper) BackupPodVolumes(backup *velerov1api.Backup, pod *corev1api.Pod, log logrus.FieldLogger) (map[string]string, []error) {
+func (b *backupper) BackupPodVolumes(backup *velerov1api.Backup, pod *corev1api.Pod, log logrus.FieldLogger) ([]*velerov1api.PodVolumeBackup, []error) {
 	// get volumes to backup from pod's annotations
 	volumesToBackup := GetVolumesToBackup(pod)
 	if len(volumesToBackup) == 0 {
@@ -120,9 +120,9 @@ func (b *backupper) BackupPodVolumes(backup *velerov1api.Backup, pod *corev1api.
 	b.resultsLock.Unlock()
 
 	var (
-		errs            []error
-		volumeSnapshots = make(map[string]string)
-		podVolumes      = make(map[string]corev1api.Volume)
+		errs             []error
+		podVolumeBackups []*velerov1api.PodVolumeBackup
+		podVolumes       = make(map[string]corev1api.Volume)
 	)
 
 	// put the pod's volumes in a map for efficient lookup below
@@ -130,6 +130,7 @@ func (b *backupper) BackupPodVolumes(backup *velerov1api.Backup, pod *corev1api.
 		podVolumes[podVolume.Name] = podVolume
 	}
 
+	var numVolumeSnapshots int
 	for _, volumeName := range volumesToBackup {
 		volume, ok := podVolumes[volumeName]
 		if !ok {
@@ -149,18 +150,16 @@ func (b *backupper) BackupPodVolumes(backup *velerov1api.Backup, pod *corev1api.
 			continue
 		}
 
-		volumeBackup := newPodVolumeBackup(backup, pod, volumeName, repo.Spec.ResticIdentifier)
-
-		if err := errorOnly(b.repoManager.veleroClient.VeleroV1().PodVolumeBackups(volumeBackup.Namespace).Create(volumeBackup)); err != nil {
+		volumeBackup := newPodVolumeBackup(backup, pod, volume, repo.Spec.ResticIdentifier)
+		numVolumeSnapshots++
+		if volumeBackup, err = b.repoManager.veleroClient.VeleroV1().PodVolumeBackups(volumeBackup.Namespace).Create(volumeBackup); err != nil {
 			errs = append(errs, err)
 			continue
 		}
-
-		volumeSnapshots[volumeName] = ""
 	}
 
 ForEachVolume:
-	for i, count := 0, len(volumeSnapshots); i < count; i++ {
+	for i, count := 0, numVolumeSnapshots; i < count; i++ {
 		select {
 		case <-b.ctx.Done():
 			errs = append(errs, errors.New("timed out waiting for all PodVolumeBackups to complete"))
@@ -168,10 +167,13 @@ ForEachVolume:
 		case res := <-resultsChan:
 			switch res.Status.Phase {
 			case velerov1api.PodVolumeBackupPhaseCompleted:
-				volumeSnapshots[res.Spec.Volume] = res.Status.SnapshotID
+				if res.Status.SnapshotID == "" { // when the volume is empty there is no restic snapshot, so best to exclude it
+					break
+				}
+				podVolumeBackups = append(podVolumeBackups, res)
 			case velerov1api.PodVolumeBackupPhaseFailed:
 				errs = append(errs, errors.Errorf("pod volume backup failed: %s", res.Status.Message))
-				delete(volumeSnapshots, res.Spec.Volume)
+				podVolumeBackups = append(podVolumeBackups, res)
 			}
 		}
 	}
@@ -180,7 +182,7 @@ ForEachVolume:
 	delete(b.results, resultsKey(pod.Namespace, pod.Name))
 	b.resultsLock.Unlock()
 
-	return volumeSnapshots, errs
+	return podVolumeBackups, errs
 }
 
 type pvcGetter interface {
@@ -219,8 +221,8 @@ func isHostPathVolume(volume *corev1api.Volume, pvcGetter pvcGetter, pvGetter pv
 	return pv.Spec.HostPath != nil, nil
 }
 
-func newPodVolumeBackup(backup *velerov1api.Backup, pod *corev1api.Pod, volumeName, repoIdentifier string) *velerov1api.PodVolumeBackup {
-	return &velerov1api.PodVolumeBackup{
+func newPodVolumeBackup(backup *velerov1api.Backup, pod *corev1api.Pod, volume corev1api.Volume, repoIdentifier string) *velerov1api.PodVolumeBackup {
+	pvb := &velerov1api.PodVolumeBackup{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:    backup.Namespace,
 			GenerateName: backup.Name + "-",
@@ -246,19 +248,29 @@ func newPodVolumeBackup(backup *velerov1api.Backup, pod *corev1api.Pod, volumeNa
 				Name:      pod.Name,
 				UID:       pod.UID,
 			},
-			Volume: volumeName,
+			Volume: volume.Name,
 			Tags: map[string]string{
 				"backup":     backup.Name,
 				"backup-uid": string(backup.UID),
 				"pod":        pod.Name,
 				"pod-uid":    string(pod.UID),
 				"ns":         pod.Namespace,
-				"volume":     volumeName,
+				"volume":     volume.Name,
 			},
 			BackupStorageLocation: backup.Spec.StorageLocation,
 			RepoIdentifier:        repoIdentifier,
 		},
 	}
+
+	// if the volume is for a PVC, annotate the pod volume backup with its name
+	// for easy identification as a PVC backup during restore.
+	if volume.PersistentVolumeClaim != nil {
+		pvb.SetAnnotations(map[string]string{
+			PVCNameAnnotation: volume.PersistentVolumeClaim.ClaimName,
+		})
+	}
+
+	return pvb
 }
 
 func errorOnly(_ interface{}, err error) error {
