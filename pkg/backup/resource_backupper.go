@@ -17,8 +17,12 @@ limitations under the License.
 package backup
 
 import (
+	"encoding/json"
+	"fmt"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -237,6 +241,11 @@ func (rb *defaultResourceBackupper) backupResource(group *metav1.APIResourceList
 
 		log.Infof("Retrieved %d items", len(items))
 
+		// back up CRD for resource if found. We should only need to do this is IncludeClusterResources is nil. If it's false
+		// we don't want to back it up, and if it's true it will already be included.
+		if len(items) > 0 && rb.backupRequest.Spec.IncludeClusterResources == nil {
+			rb.backupCRD(log, gr, gv, itemBackupper)
+		}
 		for _, item := range items {
 			unstructured, ok := item.(runtime.Unstructured)
 			if !ok {
@@ -274,6 +283,80 @@ func (rb *defaultResourceBackupper) backupResource(group *metav1.APIResourceList
 	}
 
 	return nil
+}
+
+// Adds CRD to the backup if one is found corresponding to this resource
+func (rb *defaultResourceBackupper) backupCRD(
+	log logrus.FieldLogger,
+	gr schema.GroupResource,
+	gv schema.GroupVersion,
+	itemBackupper ItemBackupper,
+) {
+	crdGr := schema.GroupResource{Group: apiextv1beta1.GroupName, Resource: "customresourcedefinitions"}
+	crdClient, err := rb.dynamicFactory.ClientForGroupVersionResource(apiextv1beta1.SchemeGroupVersion,
+		metav1.APIResource{
+			Name:       "customresourcedefinitions",
+			Namespaced: false,
+		},
+		"",
+	)
+	if err != nil {
+		log.WithError(err).Error("Error getting dynamic client for CRDs")
+		return
+	}
+
+	unstructuredCRDList, err := crdClient.List(metav1.ListOptions{FieldSelector: fmt.Sprintf("metadata.name=%s", gr.String())})
+	if err != nil {
+		log.WithError(errors.WithStack(err)).Error("Error listing CRDs")
+		return
+	}
+	crds, err := meta.ExtractList(unstructuredCRDList)
+	if err != nil {
+		log.WithError(errors.WithStack(err)).Error("Error extracting CRD list")
+		return
+	}
+	for _, item := range crds {
+		unstructured, ok := item.(runtime.Unstructured)
+		if !ok {
+			log.Errorf("Unexpected type %T", item)
+			continue
+		}
+
+		crd := apiextv1beta1.CustomResourceDefinition{}
+		itemMarshal, _ := json.Marshal(unstructured)
+		json.Unmarshal(itemMarshal, &crd)
+		found := false
+		for _, version := range crd.Spec.Versions {
+			if version.Served && version.Name == gv.Version {
+				found = true
+				break
+			}
+		}
+		if !found {
+			if crd.Spec.Version == gv.Version {
+				found = true
+			}
+		}
+		if found {
+			err = itemBackupper.backupItem(log, unstructured, crdGr)
+			if aggregate, ok := err.(kubeerrs.Aggregate); ok {
+				log.WithField("name", crd.Name).Infof("%d errors encountered backing up CRD", len(aggregate.Errors()))
+				// log each error separately so we get error location info in the log, and an
+				// accurate count of errors
+				for _, err = range aggregate.Errors() {
+					log.WithError(err).WithField("name", crd.Name).Error("Error backing up CRD")
+				}
+				continue
+			}
+			if err != nil {
+				log.WithError(err).WithField("name", crd.Name).Error("Error backing up crd")
+				continue
+			}
+			return
+		}
+
+	}
+
 }
 
 // getNamespacesToList examines ie and resolves the includes and excludes to a full list of
