@@ -40,10 +40,10 @@ import (
 )
 
 const (
-	zoneSeparator              = "__"
-	projectKey                 = "project"
-	snapshotLocationKey        = "snapshotLocation"
-	snapshotCreationTimeoutKey = "snapshotCreationTimeout"
+	zoneSeparator                  = "__"
+	projectKey                     = "project"
+	snapshotLocationKey            = "snapshotLocation"
+	snapshotCreationTimeoutKey     = "snapshotCreationTimeout"
 	snapshotCreationTimeoutDefault = 20 * time.Minute
 )
 
