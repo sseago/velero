@@ -19,7 +19,7 @@ package v1
 const (
 	// DefaultNamespace is the Kubernetes namespace that is used by default for
 	// the Velero server and API objects.
-	DefaultNamespace = "velero"
+	DefaultNamespace = "openshift-migration"
 
 	// ResourcesDir is a top-level directory expected in backups which contains sub-directories
 	// for each resource type in the backup.
