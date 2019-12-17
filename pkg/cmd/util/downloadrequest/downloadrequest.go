@@ -18,25 +18,28 @@ package downloadrequest
 
 import (
 	"compress/gzip"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 
-	v1 "github.com/heptio/velero/pkg/apis/velero/v1"
-	velerov1client "github.com/heptio/velero/pkg/generated/clientset/versioned/typed/velero/v1"
+	v1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	velerov1client "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned/typed/velero/v1"
 )
 
 // ErrNotFound is exported for external packages to check for when a file is
 // not found
 var ErrNotFound = errors.New("file not found")
 
-func Stream(client velerov1client.DownloadRequestsGetter, namespace, name string, kind v1.DownloadTargetKind, w io.Writer, timeout time.Duration) error {
+func Stream(client velerov1client.DownloadRequestsGetter, namespace, name string, kind v1.DownloadTargetKind, w io.Writer, timeout time.Duration, insecureSkipTLSVerify bool) error {
 	req := &v1.DownloadRequest{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
@@ -105,6 +108,11 @@ Loop:
 	}
 
 	httpClient := new(http.Client)
+	if insecureSkipTLSVerify {
+		httpClient.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+	}
 
 	httpReq, err := http.NewRequest("GET", req.Status.DownloadURL, nil)
 	if err != nil {
@@ -118,6 +126,11 @@ Loop:
 
 	resp, err := httpClient.Do(httpReq)
 	if err != nil {
+		if urlErr, ok := err.(*url.Error); ok {
+			if _, ok := urlErr.Err.(x509.UnknownAuthorityError); ok {
+				return fmt.Errorf(err.Error() + "\n\nThe --insecure-skip-tls-verify flag can also be used to accept any TLS certificate for the download, but it is susceptible to man-in-the-middle attacks.")
+			}
+		}
 		return err
 	}
 	defer resp.Body.Close()

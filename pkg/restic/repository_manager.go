@@ -29,13 +29,13 @@ import (
 	corev1listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	velerov1api "github.com/heptio/velero/pkg/apis/velero/v1"
-	clientset "github.com/heptio/velero/pkg/generated/clientset/versioned"
-	velerov1client "github.com/heptio/velero/pkg/generated/clientset/versioned/typed/velero/v1"
-	velerov1informers "github.com/heptio/velero/pkg/generated/informers/externalversions/velero/v1"
-	velerov1listers "github.com/heptio/velero/pkg/generated/listers/velero/v1"
-	veleroexec "github.com/heptio/velero/pkg/util/exec"
-	"github.com/heptio/velero/pkg/util/filesystem"
+	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	clientset "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
+	velerov1client "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned/typed/velero/v1"
+	velerov1informers "github.com/vmware-tanzu/velero/pkg/generated/informers/externalversions/velero/v1"
+	velerov1listers "github.com/vmware-tanzu/velero/pkg/generated/listers/velero/v1"
+	veleroexec "github.com/vmware-tanzu/velero/pkg/util/exec"
+	"github.com/vmware-tanzu/velero/pkg/util/filesystem"
 )
 
 // RepositoryManager executes commands against restic repositories.
@@ -48,9 +48,6 @@ type RepositoryManager interface {
 	// intended to be used to ensure that the repo exists/can be
 	// authenticated to.
 	ConnectToRepo(repo *velerov1api.ResticRepository) error
-
-	// CheckRepo checks the specified repo for errors.
-	CheckRepo(repo *velerov1api.ResticRepository) error
 
 	// PruneRepo deletes unused data from a repo.
 	PruneRepo(repo *velerov1api.ResticRepository) error
@@ -198,14 +195,6 @@ func (rm *repositoryManager) ConnectToRepo(repo *velerov1api.ResticRepository) e
 	snapshotsCmd.ExtraFlags = append(snapshotsCmd.ExtraFlags, "--last")
 
 	return rm.exec(snapshotsCmd, repo.Spec.BackupStorageLocation)
-}
-
-func (rm *repositoryManager) CheckRepo(repo *velerov1api.ResticRepository) error {
-	// restic check requires an exclusive lock
-	rm.repoLocker.LockExclusive(repo.Name)
-	defer rm.repoLocker.UnlockExclusive(repo.Name)
-
-	return rm.exec(CheckCommand(repo.Spec.ResticIdentifier), repo.Spec.BackupStorageLocation)
 }
 
 func (rm *repositoryManager) PruneRepo(repo *velerov1api.ResticRepository) error {

@@ -17,22 +17,28 @@ limitations under the License.
 package install
 
 import (
+	"fmt"
 	"strings"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/vmware-tanzu/velero/pkg/builder"
 )
 
 type podTemplateOption func(*podTemplateConfig)
 
 type podTemplateConfig struct {
-	image       string
-	envVars     []corev1.EnvVar
-	restoreOnly bool
-	annotations map[string]string
-	resources   corev1.ResourceRequirements
-	withSecret  bool
+	image                             string
+	envVars                           []corev1.EnvVar
+	restoreOnly                       bool
+	annotations                       map[string]string
+	resources                         corev1.ResourceRequirements
+	withSecret                        bool
+	defaultResticMaintenanceFrequency time.Duration
+	plugins                           []string
 }
 
 func WithImage(image string) podTemplateOption {
@@ -66,6 +72,7 @@ func WithEnvFromSecretKey(varName, secret, key string) podTemplateOption {
 func WithSecret(secretPresent bool) podTemplateOption {
 	return func(c *podTemplateConfig) {
 		c.withSecret = secretPresent
+
 	}
 }
 
@@ -78,6 +85,18 @@ func WithRestoreOnly() podTemplateOption {
 func WithResources(resources corev1.ResourceRequirements) podTemplateOption {
 	return func(c *podTemplateConfig) {
 		c.resources = resources
+	}
+}
+
+func WithDefaultResticMaintenanceFrequency(val time.Duration) podTemplateOption {
+	return func(c *podTemplateConfig) {
+		c.defaultResticMaintenanceFrequency = val
+	}
+}
+
+func WithPlugins(plugins []string) podTemplateOption {
+	return func(c *podTemplateConfig) {
+		c.plugins = plugins
 	}
 }
 
@@ -152,6 +171,10 @@ func Deployment(namespace string, opts ...podTemplateOption) *appsv1.Deployment 
 										},
 									},
 								},
+								{
+									Name:  "LD_LIBRARY_PATH",
+									Value: "/plugins",
+								},
 							},
 							Resources: c.resources,
 						},
@@ -216,6 +239,18 @@ func Deployment(namespace string, opts ...podTemplateOption) *appsv1.Deployment 
 
 	if c.restoreOnly {
 		deployment.Spec.Template.Spec.Containers[0].Args = append(deployment.Spec.Template.Spec.Containers[0].Args, "--restore-only")
+	}
+
+	if c.defaultResticMaintenanceFrequency > 0 {
+		deployment.Spec.Template.Spec.Containers[0].Args = append(deployment.Spec.Template.Spec.Containers[0].Args, fmt.Sprintf("--default-restic-prune-frequency=%v", c.defaultResticMaintenanceFrequency))
+	}
+
+	if len(c.plugins) > 0 {
+		for _, image := range c.plugins {
+			container := *builder.ForPluginContainer(image, pullPolicy).Result()
+			deployment.Spec.Template.Spec.InitContainers = append(deployment.Spec.Template.Spec.InitContainers, container)
+		}
+
 	}
 
 	return deployment

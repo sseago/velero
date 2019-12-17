@@ -27,20 +27,21 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/clock"
 	corev1informers "k8s.io/client-go/informers/core/v1"
 	corev1listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	velerov1api "github.com/heptio/velero/pkg/apis/velero/v1"
-	velerov1client "github.com/heptio/velero/pkg/generated/clientset/versioned/typed/velero/v1"
-	informers "github.com/heptio/velero/pkg/generated/informers/externalversions/velero/v1"
-	listers "github.com/heptio/velero/pkg/generated/listers/velero/v1"
-	"github.com/heptio/velero/pkg/restic"
-	veleroexec "github.com/heptio/velero/pkg/util/exec"
-	"github.com/heptio/velero/pkg/util/filesystem"
-	"github.com/heptio/velero/pkg/util/kube"
+	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	velerov1client "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned/typed/velero/v1"
+	informers "github.com/vmware-tanzu/velero/pkg/generated/informers/externalversions/velero/v1"
+	listers "github.com/vmware-tanzu/velero/pkg/generated/listers/velero/v1"
+	"github.com/vmware-tanzu/velero/pkg/restic"
+	"github.com/vmware-tanzu/velero/pkg/util/filesystem"
+	"github.com/vmware-tanzu/velero/pkg/util/kube"
 )
 
 type podVolumeBackupController struct {
@@ -181,7 +182,7 @@ func (c *podVolumeBackupController) processBackup(req *velerov1api.PodVolumeBack
 	// update status to InProgress
 	req, err = c.patchPodVolumeBackup(req, func(r *velerov1api.PodVolumeBackup) {
 		r.Status.Phase = velerov1api.PodVolumeBackupPhaseInProgress
-		r.Status.StartTimestamp.Time = c.clock.Now()
+		r.Status.StartTimestamp = &metav1.Time{Time: c.clock.Now()}
 	})
 	if err != nil {
 		log.WithError(err).Error("Error setting PodVolumeBackup StartTimestamp and phase to InProgress")
@@ -235,10 +236,25 @@ func (c *podVolumeBackupController) processBackup(req *velerov1api.PodVolumeBack
 		resticCmd.Env = env
 	}
 
+	// If this is a PVC, look for the most recent completed pod volume backup for it and get
+	// its restic snapshot ID to use as the value of the `--parent` flag. Without this,
+	// if the pod using the PVC (and therefore the directory path under /host_pods/) has
+	// changed since the PVC's last backup, restic will not be able to identify a suitable
+	// parent snapshot to use, and will have to do a full rescan of the contents of the PVC.
+	if pvcUID, ok := req.Labels[velerov1api.PVCUIDLabel]; ok {
+		parentSnapshotID := getParentSnapshot(log, pvcUID, c.podVolumeBackupLister.PodVolumeBackups(req.Namespace))
+		if parentSnapshotID == "" {
+			log.Info("No parent snapshot found for PVC, not using --parent flag for this backup")
+		} else {
+			log.WithField("parentSnapshotID", parentSnapshotID).Info("Setting --parent flag for this backup")
+			resticCmd.ExtraFlags = append(resticCmd.ExtraFlags, fmt.Sprintf("--parent=%s", parentSnapshotID))
+		}
+	}
+
 	var stdout, stderr string
 
 	var emptySnapshot bool
-	if stdout, stderr, err = veleroexec.RunCommand(resticCmd.Cmd()); err != nil {
+	if stdout, stderr, err = restic.RunBackup(resticCmd, log, c.updateBackupProgressFunc(req, log)); err != nil {
 		if strings.Contains(stderr, "snapshot is empty") {
 			emptySnapshot = true
 		} else {
@@ -262,7 +278,7 @@ func (c *podVolumeBackupController) processBackup(req *velerov1api.PodVolumeBack
 		r.Status.Path = path
 		r.Status.Phase = velerov1api.PodVolumeBackupPhaseCompleted
 		r.Status.SnapshotID = snapshotID
-		r.Status.CompletionTimestamp.Time = c.clock.Now()
+		r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
 		if emptySnapshot {
 			r.Status.Message = "volume was empty so no snapshot was taken"
 		}
@@ -275,6 +291,45 @@ func (c *podVolumeBackupController) processBackup(req *velerov1api.PodVolumeBack
 	log.Info("Backup completed")
 
 	return nil
+}
+
+// getParentSnapshot finds the most recent completed pod volume backup for the specified PVC and returns its
+// restic snapshot ID. Any errors encountered are logged but not returned since they do not prevent a backup
+// from proceeding.
+func getParentSnapshot(log logrus.FieldLogger, pvcUID string, podVolumeBackupLister listers.PodVolumeBackupNamespaceLister) string {
+	log = log.WithField("pvcUID", pvcUID)
+	log.Infof("Looking for most recent completed pod volume backup for this PVC")
+
+	pvcBackups, err := podVolumeBackupLister.List(labels.SelectorFromSet(map[string]string{velerov1api.PVCUIDLabel: pvcUID}))
+	if err != nil {
+		log.WithError(errors.WithStack(err)).Error("Error listing pod volume backups for PVC")
+		return ""
+	}
+
+	// go through all the pod volume backups for the PVC and look for the most recent completed one
+	// to use as the parent.
+	var mostRecentBackup *velerov1api.PodVolumeBackup
+	for _, backup := range pvcBackups {
+		if backup.Status.Phase != velerov1api.PodVolumeBackupPhaseCompleted {
+			continue
+		}
+
+		if mostRecentBackup == nil || backup.Status.StartTimestamp.After(mostRecentBackup.Status.StartTimestamp.Time) {
+			mostRecentBackup = backup
+		}
+	}
+
+	if mostRecentBackup == nil {
+		log.Info("No completed pod volume backup found for PVC")
+		return ""
+	}
+
+	log.WithFields(map[string]interface{}{
+		"parentPodVolumeBackup": mostRecentBackup.Name,
+		"parentSnapshotID":      mostRecentBackup.Status.SnapshotID,
+	}).Info("Found most recent completed pod volume backup for PVC")
+
+	return mostRecentBackup.Status.SnapshotID
 }
 
 func (c *podVolumeBackupController) patchPodVolumeBackup(req *velerov1api.PodVolumeBackup, mutate func(*velerov1api.PodVolumeBackup)) (*velerov1api.PodVolumeBackup, error) {
@@ -306,11 +361,23 @@ func (c *podVolumeBackupController) patchPodVolumeBackup(req *velerov1api.PodVol
 	return req, nil
 }
 
+// updateBackupProgressFunc returns a func that takes progress info and patches
+// the PVB with the new progress
+func (c *podVolumeBackupController) updateBackupProgressFunc(req *velerov1api.PodVolumeBackup, log logrus.FieldLogger) func(velerov1api.PodVolumeOperationProgress) {
+	return func(progress velerov1api.PodVolumeOperationProgress) {
+		if _, err := c.patchPodVolumeBackup(req, func(r *velerov1api.PodVolumeBackup) {
+			r.Status.Progress = progress
+		}); err != nil {
+			log.WithError(err).Error("error updating PodVolumeBackup progress")
+		}
+	}
+}
+
 func (c *podVolumeBackupController) fail(req *velerov1api.PodVolumeBackup, msg string, log logrus.FieldLogger) error {
 	if _, err := c.patchPodVolumeBackup(req, func(r *velerov1api.PodVolumeBackup) {
 		r.Status.Phase = velerov1api.PodVolumeBackupPhaseFailed
 		r.Status.Message = msg
-		r.Status.CompletionTimestamp.Time = c.clock.Now()
+		r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
 	}); err != nil {
 		log.WithError(err).Error("Error setting PodVolumeBackup phase to Failed")
 		return err

@@ -21,7 +21,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	velerov1api "github.com/heptio/velero/pkg/apis/velero/v1"
+	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 )
 
 /*
@@ -70,6 +70,19 @@ func (b *BackupBuilder) ObjectMeta(opts ...ObjectMetaOpt) *BackupBuilder {
 		opt(b.object)
 	}
 
+	return b
+}
+
+// FromSchedule sets the Backup's spec and labels from the Schedule template
+func (b *BackupBuilder) FromSchedule(schedule *velerov1api.Schedule) *BackupBuilder {
+	labels := schedule.Labels
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	labels[velerov1api.ScheduleNameLabel] = schedule.Name
+
+	b.object.Spec = schedule.Spec.Template
+	b.ObjectMeta(WithLabelsMap(labels))
 	return b
 }
 
@@ -141,19 +154,13 @@ func (b *BackupBuilder) TTL(ttl time.Duration) *BackupBuilder {
 
 // Expiration sets the Backup's expiration.
 func (b *BackupBuilder) Expiration(val time.Time) *BackupBuilder {
-	b.object.Status.Expiration.Time = val
+	b.object.Status.Expiration = &metav1.Time{Time: val}
 	return b
 }
 
 // StartTimestamp sets the Backup's start timestamp.
 func (b *BackupBuilder) StartTimestamp(val time.Time) *BackupBuilder {
-	b.object.Status.StartTimestamp.Time = val
-	return b
-}
-
-// NoTypeMeta removes the type meta from the Backup.
-func (b *BackupBuilder) NoTypeMeta() *BackupBuilder {
-	b.object.TypeMeta = metav1.TypeMeta{}
+	b.object.Status.StartTimestamp = &metav1.Time{Time: val}
 	return b
 }
 

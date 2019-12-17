@@ -43,6 +43,7 @@ _Some storage providers, like Quobyte, may need a different [signature algorithm
 | [DigitalOcean][7]                | StackPointCloud |                                 |
 | [OpenEBS][18]                     | OpenEBS       | [Slack][19], [GitHub Issue][20] |
 | [AlibabaCloud][21]                     | AlibabaCloud       |  [GitHub Issue][22] |
+| [HPE][24]                        | HPE                | [Slack][25], [GitHub Issue][26] |
 
 ### Adding a new plugin
 
@@ -57,10 +58,10 @@ After you publish your plugin, open a PR that adds your plugin to the appropriat
 [5]: ibm-config.md
 [6]: https://docs.portworx.com/scheduler/kubernetes/ark.html
 [7]: https://github.com/StackPointCloud/ark-plugin-digitalocean
-[8]: https://github.com/heptio/velero-plugin-example/
+[8]: https://github.com/vmware-tanzu/velero-plugin-example/
 [9]: get-started.md
 [10]: https://kubernetes.slack.com/messages/velero
-[11]: https://github.com/heptio/velero/issues
+[11]: https://github.com/vmware-tanzu/velero/issues
 [12]: https://github.com/aws/aws-sdk-go/aws
 [13]: https://portworx.slack.com/messages/px-k8s
 [14]: https://github.com/portworx/ark-plugin/issues
@@ -73,3 +74,6 @@ After you publish your plugin, open a PR that adds your plugin to the appropriat
 [21]: https://github.com/AliyunContainerService/velero-plugin
 [22]: https://github.com/AliyunContainerService/velero-plugin/issues
 [23]: oracle-config.md
+[24]: https://github.com/hpe-storage/velero-plugin
+[25]: https://slack.hpedev.io/
+[26]: https://github.com/hpe-storage/velero-plugin/issues
