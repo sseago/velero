@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -264,7 +265,6 @@ func (rm *repositoryManager) exec(cmd *Command, backupLocation string) error {
 		if !cache.WaitForCacheSync(rm.ctx.Done(), rm.backupLocationInformerSynced) {
 			return errors.New("timed out waiting for cache to sync")
 		}
-
 		env, err := AzureCmdEnv(rm.backupLocationLister, rm.namespace, backupLocation)
 		if err != nil {
 			return err
@@ -274,6 +274,16 @@ func (rm *repositoryManager) exec(cmd *Command, backupLocation string) error {
 		if !cache.WaitForCacheSync(rm.ctx.Done(), rm.backupLocationInformerSynced) {
 			return errors.New("timed out waiting for cache to sync")
 		}
+
+		bsl, err := rm.backupLocationLister.BackupStorageLocations(rm.namespace).Get(backupLocation)
+		if err != nil {
+			return err
+		}
+		insecureSkipTLSVerify, err := strconv.ParseBool(bsl.Spec.Config["insecureSkipTLSVerify"])
+		if err != nil {
+			insecureSkipTLSVerify = false
+		}
+		cmd.InsecureSkipTLSVerify = insecureSkipTLSVerify
 
 		env, err := S3CmdEnv(rm.backupLocationLister, rm.namespace, backupLocation)
 		if err != nil {
