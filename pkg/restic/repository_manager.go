@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -268,6 +269,19 @@ func (rm *repositoryManager) exec(cmd *Command, backupLocation string) error {
 		}
 		cmd.Env = env
 	} else if strings.HasPrefix(cmd.RepoIdentifier, "s3") {
+		storageLocation := &velerov1api.BackupStorageLocation{}
+		if err := rm.kbClient.Get(context.Background(), kbclient.ObjectKey{
+			Namespace: rm.namespace,
+			Name:      backupLocation,
+		}, storageLocation); err != nil {
+			return err
+		}
+		insecureSkipTLSVerify, err := strconv.ParseBool(storageLocation.Spec.Config["insecureSkipTLSVerify"])
+		if err != nil {
+			insecureSkipTLSVerify = false
+		}
+		cmd.InsecureSkipTLSVerify = insecureSkipTLSVerify
+
 		env, err := S3CmdEnv(rm.kbClient, rm.namespace, backupLocation)
 		if err != nil {
 			return err
