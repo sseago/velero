@@ -152,7 +152,7 @@ func TestGCControllerHasUpdateFunc(t *testing.T) {
 
 func TestGCControllerProcessQueueItem(t *testing.T) {
 	fakeClock := clock.NewFakeClock(time.Now())
-	defaultBackupLocation := builder.ForBackupStorageLocation("velero", "default").Result()
+	defaultBackupLocation := builder.ForBackupStorageLocation("openshift-migration", "default").Result()
 
 	tests := []struct {
 		name                           string
@@ -175,13 +175,13 @@ func TestGCControllerProcessQueueItem(t *testing.T) {
 		{
 			name:           "expired backup in read-only storage location is not deleted",
 			backup:         defaultBackup().Expiration(fakeClock.Now().Add(-time.Minute)).StorageLocation("read-only").Result(),
-			backupLocation: builder.ForBackupStorageLocation("velero", "read-only").AccessMode(api.BackupStorageLocationAccessModeReadOnly).Result(),
+			backupLocation: builder.ForBackupStorageLocation("openshift-migration", "read-only").AccessMode(api.BackupStorageLocationAccessModeReadOnly).Result(),
 			expectDeletion: false,
 		},
 		{
 			name:           "expired backup in read-write storage location is deleted",
 			backup:         defaultBackup().Expiration(fakeClock.Now().Add(-time.Minute)).StorageLocation("read-write").Result(),
-			backupLocation: builder.ForBackupStorageLocation("velero", "read-write").AccessMode(api.BackupStorageLocationAccessModeReadWrite).Result(),
+			backupLocation: builder.ForBackupStorageLocation("openshift-migration", "read-write").AccessMode(api.BackupStorageLocationAccessModeReadWrite).Result(),
 			expectDeletion: true,
 		},
 		{

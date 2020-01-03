@@ -65,7 +65,7 @@ func TestFetchBackupInfo(t *testing.T) {
 		{
 			name:              "lister has backup",
 			backupName:        "backup-1",
-			informerLocations: []*api.BackupStorageLocation{builder.ForBackupStorageLocation("velero", "default").Provider("myCloud").Bucket("bucket").Result()},
+			informerLocations: []*api.BackupStorageLocation{builder.ForBackupStorageLocation("openshift-migration", "default").Provider("myCloud").Bucket("bucket").Result()},
 			informerBackups:   []*api.Backup{defaultBackup().StorageLocation("default").Result()},
 			expectedRes:       defaultBackup().StorageLocation("default").Result(),
 		},
@@ -73,7 +73,7 @@ func TestFetchBackupInfo(t *testing.T) {
 			name:              "lister does not have a backup, but backupSvc does",
 			backupName:        "backup-1",
 			backupStoreBackup: defaultBackup().StorageLocation("default").Result(),
-			informerLocations: []*api.BackupStorageLocation{builder.ForBackupStorageLocation("velero", "default").Provider("myCloud").Bucket("bucket").Result()},
+			informerLocations: []*api.BackupStorageLocation{builder.ForBackupStorageLocation("openshift-migration", "default").Provider("myCloud").Bucket("bucket").Result()},
 			informerBackups:   []*api.Backup{defaultBackup().StorageLocation("default").Result()},
 			expectedRes:       defaultBackup().StorageLocation("default").Result(),
 		},
@@ -226,7 +226,7 @@ func TestProcessQueueItemSkips(t *testing.T) {
 }
 
 func TestProcessQueueItem(t *testing.T) {
-	defaultStorageLocation := builder.ForBackupStorageLocation("velero", "default").Provider("myCloud").Bucket("bucket").Result()
+	defaultStorageLocation := builder.ForBackupStorageLocation("openshift-migration", "default").Provider("myCloud").Bucket("bucket").Result()
 
 	tests := []struct {
 		name                            string

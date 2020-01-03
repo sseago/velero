@@ -146,8 +146,8 @@ func TestBackupSyncControllerRun(t *testing.T) {
 		},
 		{
 			name:      "all synced backups get created in Velero server's namespace",
-			namespace: "velero",
-			locations: defaultLocationsList("velero"),
+			namespace: "openshift-migration",
+			locations: defaultLocationsList("openshift-migration"),
 			cloudBuckets: map[string][]*cloudBackupData{
 				"bucket-1": {
 					&cloudBackupData{
@@ -162,7 +162,7 @@ func TestBackupSyncControllerRun(t *testing.T) {
 						backup: builder.ForBackup("ns-2", "backup-3").Result(),
 					},
 					&cloudBackupData{
-						backup: builder.ForBackup("velero", "backup-4").Result(),
+						backup: builder.ForBackup("openshift-migration", "backup-4").Result(),
 					},
 				},
 			},

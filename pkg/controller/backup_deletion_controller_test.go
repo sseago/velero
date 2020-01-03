@@ -124,7 +124,7 @@ type backupDeletionControllerTestData struct {
 
 func setupBackupDeletionControllerTest(objects ...runtime.Object) *backupDeletionControllerTestData {
 	req := pkgbackup.NewDeleteBackupRequest("foo", "uid")
-	req.Namespace = "velero"
+	req.Namespace = "openshift-migration"
 	req.Name = "foo-abcde"
 
 	var (
@@ -268,7 +268,7 @@ func TestBackupDeletionControllerProcessRequest(t *testing.T) {
 
 	t.Run("patching to InProgress fails", func(t *testing.T) {
 		backup := builder.ForBackup(v1.DefaultNamespace, "foo").StorageLocation("default").Result()
-		location := builder.ForBackupStorageLocation("velero", "default").Result()
+		location := builder.ForBackupStorageLocation("openshift-migration", "default").Result()
 
 		td := setupBackupDeletionControllerTest(backup)
 
@@ -300,7 +300,7 @@ func TestBackupDeletionControllerProcessRequest(t *testing.T) {
 
 	t.Run("patching backup to Deleting fails", func(t *testing.T) {
 		backup := builder.ForBackup(v1.DefaultNamespace, "foo").StorageLocation("default").Result()
-		location := builder.ForBackupStorageLocation("velero", "default").Result()
+		location := builder.ForBackupStorageLocation("openshift-migration", "default").Result()
 
 		td := setupBackupDeletionControllerTest(backup)
 
@@ -392,7 +392,7 @@ func TestBackupDeletionControllerProcessRequest(t *testing.T) {
 
 	t.Run("backup storage location is in read-only mode", func(t *testing.T) {
 		backup := builder.ForBackup(v1.DefaultNamespace, "foo").StorageLocation("default").Result()
-		location := builder.ForBackupStorageLocation("velero", "default").AccessMode(v1.BackupStorageLocationAccessModeReadOnly).Result()
+		location := builder.ForBackupStorageLocation("openshift-migration", "default").AccessMode(v1.BackupStorageLocationAccessModeReadOnly).Result()
 
 		td := setupBackupDeletionControllerTest(backup)
 
@@ -424,9 +424,9 @@ func TestBackupDeletionControllerProcessRequest(t *testing.T) {
 		backup.UID = "uid"
 		backup.Spec.StorageLocation = "primary"
 
-		restore1 := builder.ForRestore("velero", "restore-1").Phase(v1.RestorePhaseCompleted).Backup("foo").Result()
-		restore2 := builder.ForRestore("velero", "restore-2").Phase(v1.RestorePhaseCompleted).Backup("foo").Result()
-		restore3 := builder.ForRestore("velero", "restore-3").Phase(v1.RestorePhaseCompleted).Backup("some-other-backup").Result()
+		restore1 := builder.ForRestore("openshift-migration", "restore-1").Phase(v1.RestorePhaseCompleted).Backup("foo").Result()
+		restore2 := builder.ForRestore("openshift-migration", "restore-2").Phase(v1.RestorePhaseCompleted).Backup("foo").Result()
+		restore3 := builder.ForRestore("openshift-migration", "restore-3").Phase(v1.RestorePhaseCompleted).Backup("some-other-backup").Result()
 
 		td := setupBackupDeletionControllerTest(backup, restore1, restore2, restore3)
 
@@ -574,22 +574,22 @@ func TestBackupDeletionControllerProcessRequest(t *testing.T) {
 		backup.UID = "uid"
 		backup.Spec.StorageLocation = "primary"
 
-		restore1 := builder.ForRestore("velero", "restore-1").
+		restore1 := builder.ForRestore("openshift-migration", "restore-1").
 			Phase(v1.RestorePhaseCompleted).
 			Backup("the-really-long-backup-name-that-is-much-more-than-63-characters").
 			Result()
-		restore2 := builder.ForRestore("velero", "restore-2").
+		restore2 := builder.ForRestore("openshift-migration", "restore-2").
 			Phase(v1.RestorePhaseCompleted).
 			Backup("the-really-long-backup-name-that-is-much-more-than-63-characters").
 			Result()
-		restore3 := builder.ForRestore("velero", "restore-3").
+		restore3 := builder.ForRestore("openshift-migration", "restore-3").
 			Phase(v1.RestorePhaseCompleted).
 			Backup("some-other-backup").
 			Result()
 
 		td := setupBackupDeletionControllerTest(backup, restore1, restore2, restore3)
 		td.req = pkgbackup.NewDeleteBackupRequest(backup.Name, string(backup.UID))
-		td.req.Namespace = "velero"
+		td.req.Namespace = "openshift-migration"
 		td.req.Name = "foo-abcde"
 		td.sharedInformers.Velero().V1().Restores().Informer().GetStore().Add(restore1)
 		td.sharedInformers.Velero().V1().Restores().Informer().GetStore().Add(restore2)

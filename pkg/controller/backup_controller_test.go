@@ -76,22 +76,22 @@ func TestProcessBackupNonProcessedItems(t *testing.T) {
 		},
 		{
 			name:   "FailedValidation backup is not processed",
-			key:    "velero/backup-1",
+			key:    "openshift-migration/backup-1",
 			backup: defaultBackup().Phase(velerov1api.BackupPhaseFailedValidation).Result(),
 		},
 		{
 			name:   "InProgress backup is not processed",
-			key:    "velero/backup-1",
+			key:    "openshift-migration/backup-1",
 			backup: defaultBackup().Phase(velerov1api.BackupPhaseInProgress).Result(),
 		},
 		{
 			name:   "Completed backup is not processed",
-			key:    "velero/backup-1",
+			key:    "openshift-migration/backup-1",
 			backup: defaultBackup().Phase(velerov1api.BackupPhaseCompleted).Result(),
 		},
 		{
 			name:   "Failed backup is not processed",
-			key:    "velero/backup-1",
+			key:    "openshift-migration/backup-1",
 			backup: defaultBackup().Phase(velerov1api.BackupPhaseFailed).Result(),
 		},
 	}
@@ -126,7 +126,7 @@ func TestProcessBackupNonProcessedItems(t *testing.T) {
 }
 
 func TestProcessBackupValidationFailures(t *testing.T) {
-	defaultBackupLocation := builder.ForBackupStorageLocation("velero", "loc-1").Result()
+	defaultBackupLocation := builder.ForBackupStorageLocation("openshift-migration", "loc-1").Result()
 
 	tests := []struct {
 		name           string
@@ -154,7 +154,7 @@ func TestProcessBackupValidationFailures(t *testing.T) {
 		{
 			name:           "backup for read-only backup location fails validation",
 			backup:         defaultBackup().StorageLocation("read-only").Result(),
-			backupLocation: builder.ForBackupStorageLocation("velero", "read-only").AccessMode(velerov1api.BackupStorageLocationAccessModeReadOnly).Result(),
+			backupLocation: builder.ForBackupStorageLocation("openshift-migration", "read-only").AccessMode(velerov1api.BackupStorageLocationAccessModeReadOnly).Result(),
 			expectedErrs:   []string{"backup can't be created because backup storage location read-only is currently in read-only mode"},
 		},
 	}
@@ -215,13 +215,13 @@ func TestBackupLocationLabel(t *testing.T) {
 		{
 			name:                   "valid backup location name should be used as a label",
 			backup:                 defaultBackup().Result(),
-			backupLocation:         builder.ForBackupStorageLocation("velero", "loc-1").Result(),
+			backupLocation:         builder.ForBackupStorageLocation("openshift-migration", "loc-1").Result(),
 			expectedBackupLocation: "loc-1",
 		},
 		{
 			name:                   "invalid storage location name should be handled while creating label",
 			backup:                 defaultBackup().Result(),
-			backupLocation:         builder.ForBackupStorageLocation("velero", "defaultdefaultdefaultdefaultdefaultdefaultdefaultdefaultdefaultdefault").Result(),
+			backupLocation:         builder.ForBackupStorageLocation("openshift-migration", "defaultdefaultdefaultdefaultdefaultdefaultdefaultdefaultdefaultdefault").Result(),
 			expectedBackupLocation: "defaultdefaultdefaultdefaultdefaultdefaultdefaultdefaultd58343f",
 		},
 	}
@@ -311,7 +311,7 @@ func TestDefaultBackupTTL(t *testing.T) {
 }
 
 func TestProcessBackupCompletions(t *testing.T) {
-	defaultBackupLocation := builder.ForBackupStorageLocation("velero", "loc-1").Bucket("store-1").Result()
+	defaultBackupLocation := builder.ForBackupStorageLocation("openshift-migration", "loc-1").Bucket("store-1").Result()
 
 	now, err := time.Parse(time.RFC1123Z, time.RFC1123Z)
 	require.NoError(t, err)
@@ -358,7 +358,7 @@ func TestProcessBackupCompletions(t *testing.T) {
 		{
 			name:           "backup with a specific backup location keeps it",
 			backup:         defaultBackup().StorageLocation("alt-loc").Result(),
-			backupLocation: builder.ForBackupStorageLocation("velero", "alt-loc").Bucket("store-1").Result(),
+			backupLocation: builder.ForBackupStorageLocation("openshift-migration", "alt-loc").Bucket("store-1").Result(),
 			expectedResult: &velerov1api.Backup{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "Backup",
@@ -386,7 +386,7 @@ func TestProcessBackupCompletions(t *testing.T) {
 		{
 			name:   "backup for a location with ReadWrite access mode gets processed",
 			backup: defaultBackup().StorageLocation("read-write").Result(),
-			backupLocation: builder.ForBackupStorageLocation("velero", "read-write").
+			backupLocation: builder.ForBackupStorageLocation("openshift-migration", "read-write").
 				Bucket("store-1").
 				AccessMode(velerov1api.BackupStorageLocationAccessModeReadWrite).
 				Result(),

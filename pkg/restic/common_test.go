@@ -75,8 +75,8 @@ func TestGetVolumeBackupsForPod(t *testing.T) {
 		{
 			name: "has snapshot annotation, with suffix, and also PVBs",
 			podVolumeBackups: []*velerov1api.PodVolumeBackup{
-				builder.ForPodVolumeBackup("velero", "pvb-1").PodName("TestPod").SnapshotID("bar").Volume("pvbtest1-foo").Result(),
-				builder.ForPodVolumeBackup("velero", "pvb-2").PodName("TestPod").SnapshotID("123").Volume("pvbtest2-abc").Result(),
+				builder.ForPodVolumeBackup("openshift-migration", "pvb-1").PodName("TestPod").SnapshotID("bar").Volume("pvbtest1-foo").Result(),
+				builder.ForPodVolumeBackup("openshift-migration", "pvb-2").PodName("TestPod").SnapshotID("123").Volume("pvbtest2-abc").Result(),
 			},
 			podName:        "TestPod",
 			podAnnotations: map[string]string{"x": "y", podAnnotationPrefix + "foo": "bar", podAnnotationPrefix + "abc": "123"},
@@ -85,8 +85,8 @@ func TestGetVolumeBackupsForPod(t *testing.T) {
 		{
 			name: "no snapshot annotation, but with PVBs",
 			podVolumeBackups: []*velerov1api.PodVolumeBackup{
-				builder.ForPodVolumeBackup("velero", "pvb-1").PodName("TestPod").SnapshotID("bar").Volume("pvbtest1-foo").Result(),
-				builder.ForPodVolumeBackup("velero", "pvb-2").PodName("TestPod").SnapshotID("123").Volume("pvbtest2-abc").Result(),
+				builder.ForPodVolumeBackup("openshift-migration", "pvb-1").PodName("TestPod").SnapshotID("bar").Volume("pvbtest1-foo").Result(),
+				builder.ForPodVolumeBackup("openshift-migration", "pvb-2").PodName("TestPod").SnapshotID("123").Volume("pvbtest2-abc").Result(),
 			},
 			podName:  "TestPod",
 			expected: map[string]string{"pvbtest1-foo": "bar", "pvbtest2-abc": "123"},
@@ -94,10 +94,10 @@ func TestGetVolumeBackupsForPod(t *testing.T) {
 		{
 			name: "no snapshot annotation, but with PVBs, some of which have snapshot IDs and some of which don't",
 			podVolumeBackups: []*velerov1api.PodVolumeBackup{
-				builder.ForPodVolumeBackup("velero", "pvb-1").PodName("TestPod").SnapshotID("bar").Volume("pvbtest1-foo").Result(),
-				builder.ForPodVolumeBackup("velero", "pvb-2").PodName("TestPod").SnapshotID("123").Volume("pvbtest2-abc").Result(),
-				builder.ForPodVolumeBackup("velero", "pvb-3").PodName("TestPod").Volume("pvbtest3-foo").Result(),
-				builder.ForPodVolumeBackup("velero", "pvb-4").PodName("TestPod").Volume("pvbtest4-abc").Result(),
+				builder.ForPodVolumeBackup("openshift-migration", "pvb-1").PodName("TestPod").SnapshotID("bar").Volume("pvbtest1-foo").Result(),
+				builder.ForPodVolumeBackup("openshift-migration", "pvb-2").PodName("TestPod").SnapshotID("123").Volume("pvbtest2-abc").Result(),
+				builder.ForPodVolumeBackup("openshift-migration", "pvb-3").PodName("TestPod").Volume("pvbtest3-foo").Result(),
+				builder.ForPodVolumeBackup("openshift-migration", "pvb-4").PodName("TestPod").Volume("pvbtest4-abc").Result(),
 			},
 			podName:  "TestPod",
 			expected: map[string]string{"pvbtest1-foo": "bar", "pvbtest2-abc": "123"},
@@ -105,9 +105,9 @@ func TestGetVolumeBackupsForPod(t *testing.T) {
 		{
 			name: "has snapshot annotation, with suffix, and with PVBs from current pod and a PVB from another pod",
 			podVolumeBackups: []*velerov1api.PodVolumeBackup{
-				builder.ForPodVolumeBackup("velero", "pvb-1").PodName("TestPod").SnapshotID("bar").Volume("pvbtest1-foo").Result(),
-				builder.ForPodVolumeBackup("velero", "pvb-2").PodName("TestPod").SnapshotID("123").Volume("pvbtest2-abc").Result(),
-				builder.ForPodVolumeBackup("velero", "pvb-3").PodName("TestAnotherPod").SnapshotID("xyz").Volume("pvbtest3-xyz").Result(),
+				builder.ForPodVolumeBackup("openshift-migration", "pvb-1").PodName("TestPod").SnapshotID("bar").Volume("pvbtest1-foo").Result(),
+				builder.ForPodVolumeBackup("openshift-migration", "pvb-2").PodName("TestPod").SnapshotID("123").Volume("pvbtest2-abc").Result(),
+				builder.ForPodVolumeBackup("openshift-migration", "pvb-3").PodName("TestAnotherPod").SnapshotID("xyz").Volume("pvbtest3-xyz").Result(),
 			},
 			podAnnotations: map[string]string{"x": "y", podAnnotationPrefix + "foo": "bar", podAnnotationPrefix + "abc": "123"},
 			podName:        "TestPod",
@@ -350,7 +350,7 @@ func TestTempCredentialsFile(t *testing.T) {
 		fs             = velerotest.NewFakeFileSystem()
 		secret         = &corev1api.Secret{
 			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "velero",
+				Namespace: "openshift-migration",
 				Name:      CredentialsSecretName,
 			},
 			Data: map[string][]byte{
@@ -360,14 +360,14 @@ func TestTempCredentialsFile(t *testing.T) {
 	)
 
 	// secret not in lister: expect an error
-	fileName, err := TempCredentialsFile(secretLister, "velero", "default", fs)
+	fileName, err := TempCredentialsFile(secretLister, "openshift-migration", "default", fs)
 	assert.Error(t, err)
 
 	// now add secret to lister
 	require.NoError(t, secretInformer.GetStore().Add(secret))
 
 	// secret in lister: expect temp file to be created with password
-	fileName, err = TempCredentialsFile(secretLister, "velero", "default", fs)
+	fileName, err = TempCredentialsFile(secretLister, "openshift-migration", "default", fs)
 	require.NoError(t, err)
 
 	contents, err := fs.ReadFile(fileName)

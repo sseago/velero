@@ -209,7 +209,7 @@ func TestServiceAccountActionExecute(t *testing.T) {
 				"apiVersion": "v1",
 				"kind": "ServiceAccount",
 				"metadata": {
-					"namespace": "velero",
+					"namespace": "openshift-migration",
 					"name": "velero"
 				}
 			}
@@ -224,7 +224,7 @@ func TestServiceAccountActionExecute(t *testing.T) {
 				"apiVersion": "v1",
 				"kind": "ServiceAccount",
 				"metadata": {
-					"namespace": "velero",
+					"namespace": "openshift-migration",
 					"name": "velero"
 				}
 			}
@@ -239,7 +239,7 @@ func TestServiceAccountActionExecute(t *testing.T) {
 						},
 						{
 							Kind:      "non-matching-kind",
-							Namespace: "velero",
+							Namespace: "openshift-migration",
 							Name:      "velero",
 						},
 						{
@@ -249,7 +249,7 @@ func TestServiceAccountActionExecute(t *testing.T) {
 						},
 						{
 							Kind:      rbac.ServiceAccountKind,
-							Namespace: "velero",
+							Namespace: "openshift-migration",
 							Name:      "non-matching-name",
 						},
 					},
@@ -267,7 +267,7 @@ func TestServiceAccountActionExecute(t *testing.T) {
 				"apiVersion": "v1",
 				"kind": "ServiceAccount",
 				"metadata": {
-					"namespace": "velero",
+					"namespace": "openshift-migration",
 					"name": "velero"
 				}
 			}
@@ -300,7 +300,7 @@ func TestServiceAccountActionExecute(t *testing.T) {
 						},
 						{
 							Kind:      rbac.ServiceAccountKind,
-							Namespace: "velero",
+							Namespace: "openshift-migration",
 							Name:      "velero",
 						},
 					},
@@ -315,7 +315,7 @@ func TestServiceAccountActionExecute(t *testing.T) {
 					Subjects: []rbac.Subject{
 						{
 							Kind:      rbac.ServiceAccountKind,
-							Namespace: "velero",
+							Namespace: "openshift-migration",
 							Name:      "velero",
 						},
 					},
@@ -330,7 +330,7 @@ func TestServiceAccountActionExecute(t *testing.T) {
 					Subjects: []rbac.Subject{
 						{
 							Kind:      rbac.ServiceAccountKind,
-							Namespace: "velero",
+							Namespace: "openshift-migration",
 							Name:      "velero",
 						},
 						{
@@ -417,7 +417,7 @@ func TestServiceAccountActionExecuteOnBeta1(t *testing.T) {
 				"apiVersion": "v1",
 				"kind": "ServiceAccount",
 				"metadata": {
-					"namespace": "velero",
+					"namespace": "openshift-migration",
 					"name": "velero"
 				}
 			}
@@ -432,7 +432,7 @@ func TestServiceAccountActionExecuteOnBeta1(t *testing.T) {
 				"apiVersion": "v1",
 				"kind": "ServiceAccount",
 				"metadata": {
-					"namespace": "velero",
+					"namespace": "openshift-migration",
 					"name": "velero"
 				}
 			}
@@ -447,7 +447,7 @@ func TestServiceAccountActionExecuteOnBeta1(t *testing.T) {
 						},
 						{
 							Kind:      "non-matching-kind",
-							Namespace: "velero",
+							Namespace: "openshift-migration",
 							Name:      "velero",
 						},
 						{
@@ -457,7 +457,7 @@ func TestServiceAccountActionExecuteOnBeta1(t *testing.T) {
 						},
 						{
 							Kind:      rbacbeta.ServiceAccountKind,
-							Namespace: "velero",
+							Namespace: "openshift-migration",
 							Name:      "non-matching-name",
 						},
 					},
@@ -475,7 +475,7 @@ func TestServiceAccountActionExecuteOnBeta1(t *testing.T) {
 				"apiVersion": "v1",
 				"kind": "ServiceAccount",
 				"metadata": {
-					"namespace": "velero",
+					"namespace": "openshift-migration",
 					"name": "velero"
 				}
 			}
@@ -508,7 +508,7 @@ func TestServiceAccountActionExecuteOnBeta1(t *testing.T) {
 						},
 						{
 							Kind:      rbacbeta.ServiceAccountKind,
-							Namespace: "velero",
+							Namespace: "openshift-migration",
 							Name:      "velero",
 						},
 					},
@@ -523,7 +523,7 @@ func TestServiceAccountActionExecuteOnBeta1(t *testing.T) {
 					Subjects: []rbacbeta.Subject{
 						{
 							Kind:      rbacbeta.ServiceAccountKind,
-							Namespace: "velero",
+							Namespace: "openshift-migration",
 							Name:      "velero",
 						},
 					},
@@ -538,7 +538,7 @@ func TestServiceAccountActionExecuteOnBeta1(t *testing.T) {
 					Subjects: []rbacbeta.Subject{
 						{
 							Kind:      rbacbeta.ServiceAccountKind,
-							Namespace: "velero",
+							Namespace: "openshift-migration",
 							Name:      "velero",
 						},
 						{
