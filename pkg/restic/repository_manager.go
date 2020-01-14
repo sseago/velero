@@ -262,7 +262,7 @@ func (rm *repositoryManager) exec(cmd *Command, backupLocation string) error {
 		}
 		insecureSkipTLSVerify, err := strconv.ParseBool(bsl.Spec.Config["insecureSkipTLSVerify"])
 		if err != nil {
-			return err
+			insecureSkipTLSVerify = false
 		}
 		cmd.InsecureSkipTLSVerify = insecureSkipTLSVerify
 	}
