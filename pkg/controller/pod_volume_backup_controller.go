@@ -251,8 +251,7 @@ func (c *podVolumeBackupController) processBackup(req *velerov1api.PodVolumeBack
 		}
 		insecureSkipTLSVerify, err = strconv.ParseBool(bsl.Spec.Config["insecureSkipTLSVerify"])
 		if err != nil {
-			log.WithError(err).Error("error parsing insecureSkipTLSVerify (expected bool)")
-			return errors.WithStack(err)
+			insecureSkipTLSVerify = false
 		}
 		resticCmd.InsecureSkipTLSVerify = insecureSkipTLSVerify
 	}
