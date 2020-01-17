@@ -180,7 +180,7 @@ func getSummaryLine(b []byte) ([]byte, error) {
 // RunRestore runs a `restic restore` command and monitors the volume size to
 // provide progress updates to the caller.
 func RunRestore(restoreCmd *Command, log logrus.FieldLogger, updateFunc func(velerov1api.PodVolumeOperationProgress)) (string, string, error) {
-	snapshotSize, err := getSnapshotSize(restoreCmd.RepoIdentifier, restoreCmd.PasswordFile, restoreCmd.Args[0], restoreCmd.Env)
+	snapshotSize, err := getSnapshotSize(restoreCmd.RepoIdentifier, restoreCmd.PasswordFile, restoreCmd.Args[0], restoreCmd.Env, restoreCmd.InsecureSkipTLSVerify)
 	if err != nil {
 		return "", "", errors.Wrap(err, "error getting snapshot size")
 	}
@@ -226,9 +226,10 @@ func RunRestore(restoreCmd *Command, log logrus.FieldLogger, updateFunc func(vel
 	return stdout, stderr, err
 }
 
-func getSnapshotSize(repoIdentifier, passwordFile, snapshotID string, env []string) (int64, error) {
+func getSnapshotSize(repoIdentifier, passwordFile, snapshotID string, env []string, insecureSkipTLSVerify bool) (int64, error) {
 	cmd := StatsCommand(repoIdentifier, passwordFile, snapshotID)
 	cmd.Env = env
+	cmd.InsecureSkipTLSVerify = insecureSkipTLSVerify
 
 	stdout, stderr, err := exec.RunCommand(cmd.Cmd())
 	if err != nil {
