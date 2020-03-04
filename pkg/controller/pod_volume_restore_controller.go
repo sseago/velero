@@ -356,6 +356,18 @@ func (c *podVolumeRestoreController) restorePodVolume(req *velerov1api.PodVolume
 		}
 		resticCmd.InsecureSkipTLSVerify = insecureSkipTLSVerify
 	}
+	if strings.HasPrefix(req.Spec.RepoIdentifier, "s3") {
+		bsl, err := c.backupLocationLister.BackupStorageLocations(req.Namespace).Get(req.Spec.BackupStorageLocation)
+		if err != nil {
+			log.WithError(err).Errorf("Error getting BackupStorageLocation %s", req.Spec.BackupStorageLocation)
+			return errors.WithStack(err)
+		}
+		insecureSkipTLSVerify, err := strconv.ParseBool(bsl.Spec.Config["insecureSkipTLSVerify"])
+		if err != nil {
+			insecureSkipTLSVerify = false
+		}
+		resticCmd.InsecureSkipTLSVerify = insecureSkipTLSVerify
+	}
 
 	var stdout, stderr string
 
