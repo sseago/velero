@@ -329,13 +329,32 @@ func (c *podVolumeRestoreController) restorePodVolume(req *velerov1api.PodVolume
 		volumePath,
 	)
 
-	// if this is azure, set resticCmd.Env appropriately
+	// Running restic command might need additional provider specific environment variables. Based on the provider, we
+	// set resticCmd.Env appropriately (currently for Azure and S3 based backuplocations)
 	if strings.HasPrefix(req.Spec.RepoIdentifier, "azure") {
 		env, err := restic.AzureCmdEnv(c.backupLocationLister, req.Namespace, req.Spec.BackupStorageLocation)
 		if err != nil {
 			return c.failRestore(req, errors.Wrap(err, "error setting restic cmd env").Error(), log)
 		}
 		resticCmd.Env = env
+	} else if strings.HasPrefix(req.Spec.RepoIdentifier, "s3") {
+		env, err := restic.S3CmdEnv(c.backupLocationLister, req.Namespace, req.Spec.BackupStorageLocation)
+		if err != nil {
+			return c.failRestore(req, errors.Wrap(err, "error setting restic cmd env").Error(), log)
+		}
+		resticCmd.Env = env
+	}
+	if strings.HasPrefix(req.Spec.RepoIdentifier, "s3") {
+		bsl, err := c.backupLocationLister.BackupStorageLocations(req.Namespace).Get(req.Spec.BackupStorageLocation)
+		if err != nil {
+			log.WithError(err).Errorf("Error getting BackupStorageLocation %s", req.Spec.BackupStorageLocation)
+			return errors.WithStack(err)
+		}
+		insecureSkipTLSVerify, err := strconv.ParseBool(bsl.Spec.Config["insecureSkipTLSVerify"])
+		if err != nil {
+			insecureSkipTLSVerify = false
+		}
+		resticCmd.InsecureSkipTLSVerify = insecureSkipTLSVerify
 	}
 	if strings.HasPrefix(req.Spec.RepoIdentifier, "s3") {
 		bsl, err := c.backupLocationLister.BackupStorageLocations(req.Namespace).Get(req.Spec.BackupStorageLocation)
