@@ -65,6 +65,10 @@ const (
 	// should be excluded from restic backup.
 	VolumesToExcludeAnnotation = "backup.velero.io/backup-volumes-excludes"
 
+	// VolumesToVerifyAnnotation is the annotation on a pod whose mounted volumes
+	// need to be verified after backing up with restic.
+	VolumesToVerifyAnnotation = "backup.velero.io/verify-volumes"
+
 	// Deprecated.
 	//
 	// TODO(2.0): remove
@@ -150,6 +154,27 @@ func getVolumesToExclude(obj metav1.Object) []string {
 func contains(list []string, k string) bool {
 	for _, i := range list {
 		if i == k {
+			return true
+		}
+	}
+	return false
+}
+
+// GetVolumesToVerifyIncludes returns true if the passed-in
+// volume name is included in the VolumesToVerifyAnnotation
+func GetVolumesToVerifyIncludes(obj metav1.Object, volName string) bool {
+	annotations := obj.GetAnnotations()
+	if annotations == nil {
+		return false
+	}
+
+	volumesValue := annotations[VolumesToVerifyAnnotation]
+	if volumesValue == "" {
+		return false
+	}
+
+	for _, vol := range strings.Split(volumesValue, ",") {
+		if vol == volName {
 			return true
 		}
 	}

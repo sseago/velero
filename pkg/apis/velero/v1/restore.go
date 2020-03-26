@@ -247,6 +247,21 @@ type RestoreStatus struct {
 	// +optional
 	// +nullable
 	CompletionTimestamp *metav1.Time `json:"completionTimestamp,omitempty"`
+
+	// PodVolumeRestoreErrors is a slice of all PodVolumeRestores
+	// with errors (errors encountered by restic when restoring a pod)
+	// (if applicable)
+	// +optional
+	// +nullable
+	PodVolumeRestoreErrors []v1.ObjectReference `json:"podVolumeRestoreErrors,omitempty"`
+
+	// PodVolumeRestoreVerifyErrors is a slice of all
+	// PodVolumeRestore errors from restore verification (errors
+	// encountered by restic when verifying a pod restore)
+	// (if applicable)
+	// +optional
+	// +nullable
+	PodVolumeRestoreVerifyErrors []v1.ObjectReference `json:"podVolumeRestoreVerifyErrors,omitempty"`
 }
 
 // +genclient
