@@ -91,7 +91,10 @@ func RunBackup(backupCmd *Command, log logrus.FieldLogger, updateFunc func(veler
 	cmd.Stdout = stdoutBuf
 	cmd.Stderr = stderrBuf
 
-	cmd.Start()
+	err := cmd.Start()
+	if err != nil {
+		return stdoutBuf.String(), stderrBuf.String(), err
+	}
 
 	go func() {
 		ticker := time.NewTicker(backupProgressCheckInterval)
@@ -121,7 +124,10 @@ func RunBackup(backupCmd *Command, log logrus.FieldLogger, updateFunc func(veler
 		}
 	}()
 
-	cmd.Wait()
+	err = cmd.Wait()
+	if err != nil {
+		return stdoutBuf.String(), stderrBuf.String(), err
+	}
 	quit <- struct{}{}
 
 	summary, err := getSummaryLine(stdoutBuf.Bytes())
