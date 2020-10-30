@@ -1,0 +1,42 @@
+git checkout v1.5.2
+git checkout -b 1.5.2-rebase
+git cherry-pick 66d977b3ac2f18f5fc67aed8ac0b85f6217d38f7 # Add UBI Dockerfiles for Konveyor
+git cherry-pick 51bb8c04a4c9eb39e9a32c48629620215f2de356 # Add support for restic skip-unchanged
+git cherry-pick 3e340ffbd9506a99d99038ad0f519833d5e5b92c # insecureSkipTLSVerify changes
+# fix conflict with pkg/restic/repository_manager.go
+git cherry-pick d2b7e756cba85db42b91628f2dd1d43a7d22e7cb # Added support for restic --verify flag
+# fix several merge conflicts, "make update" for CRDs
+git cherry-pick b2ae3516b24896f72d3df8fc2c2de7305647a3f5 # CVE-1869801 update aws-sdk-go to 1.34.11
+# merge conflicts on go.mod, "go mod tidy" to regenerate
+
+# new commit with the following:
+
++++ b/Dockerfile-velero-restic-restore-helper.ubi
+@@ -1,7 +1,7 @@
+ FROM openshift/origin-release:golang-1.14 AS builder
+ COPY . /go/src/github.com/vmware-tanzu/velero
+ RUN cd /go/src/github.com/vmware-tanzu/velero \
+-&& CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' -mod=mod ./cmd/velero-restic-restore-helper
++&& CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' -mod=vendor ./cmd/velero-restic-restore-helper
+
+ FROM registry.access.redhat.com/ubi8-minimal
+ RUN microdnf -y update && microdnf clean all
+diff --git a/Dockerfile.ubi b/Dockerfile.ubi
+index c1ff616f..8bd0877e 100644
+--- a/Dockerfile.ubi
++++ b/Dockerfile.ubi
+@@ -1,7 +1,7 @@
+ FROM openshift/origin-release:golang-1.14 AS builder
+ COPY . /go/src/github.com/vmware-tanzu/velero
+ RUN cd /go/src/github.com/vmware-tanzu/velero \
+-&& CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static" -X github.com/vmware-tanzu/velero/pkg/buildinfo.Version=v1.3.0-konveyor' -mod=mod ./cmd/velero
++&& CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static" -X github.com/vmware-tanzu/velero/pkg/buildinfo.Version=v1.3.0-konveyor' -mod=vendor ./cmd/velero
+
+# commit msg "Dockerfile mod=vendor"
+
+# new commit, Dockerfile.ubi "version bump to 1.5.2"
+
+
+# and then run "go mod vendor"
+# Commit message is "Vendor code and rebase log for 1.5.2"
+
