@@ -1,0 +1,25 @@
+git checkout v1.6.0-rc.1
+git checkout -b 1.6.0-rc.1-rebase
+git cherry-pick 66d977b3ac2f18f5fc67aed8ac0b85f6217d38f7 # Add UBI Dockerfiles for Konveyor
+git cherry-pick 51bb8c04a4c9eb39e9a32c48629620215f2de356 # Add support for restic skip-unchanged
+git cherry-pick c8bf86c4ab982fa1eaf4902243429bd38b04e6aa# insecureSkipTLSVerify changes
+# fix conflicts
+#  CONFLICT (content): Merge conflict in pkg/restic/repository_manager.go
+#  CONFLICT (content): Merge conflict in pkg/restic/exec_commands.go
+#  CONFLICT (content): Merge conflict in pkg/controller/pod_volume_restore_controller.go
+#  CONFLICT (content): Merge conflict in pkg/controller/pod_volume_backup_controller.go
+git cherry-pick 91be94dfa7141a54b608f39c3ad26b0149ec3a61 # Added support for restic --verify flag
+# fix conflicts
+#  CONFLICT (content): Merge conflict in pkg/restic/common.go
+#  CONFLICT (content): Merge conflict in pkg/controller/pod_volume_restore_controller.go
+#  CONFLICT (content): Merge conflict in pkg/apis/velero/v1/zz_generated.deepcopy.go
+#  CONFLICT (content): Merge conflict in pkg/apis/velero/v1/restore.go
+#  CONFLICT (content): Merge conflict in config/crd/crds/crds.go
+#  CONFLICT (content): Merge conflict in config/crd/bases/velero.io_restores.yaml
+# fix several merge conflicts, "make update" for CRDs
+git cherry-pick 6fd410157e203b2761537b0467900d19c6c81d58 # CVE-1869801 update aws-sdk-go to 1.34.11
+# merge conflicts on go.mod, "go mod tidy" to regenerate
+git cherry-pick 4cad596321e7a1ce08dc0417f1d890f9458bbb65 # Add BZ automation to repo (#82)
+
+# new commit, Dockerfile.ubi "version bump for velero; update restic branch/build"
+# rebase log, "mod=mod" for restic, update to topic branch, velero version bump
