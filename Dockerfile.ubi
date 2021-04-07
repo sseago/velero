@@ -1,13 +1,13 @@
 FROM openshift/origin-release:golang-1.14 AS builder
 COPY . /go/src/github.com/vmware-tanzu/velero
 RUN cd /go/src/github.com/vmware-tanzu/velero \
-&& CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static" -X github.com/vmware-tanzu/velero/pkg/buildinfo.Version=v1.3.0-konveyor' -mod=mod ./cmd/velero
+&& CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static" -X github.com/vmware-tanzu/velero/pkg/buildinfo.Version=v1.6.0-rc.1-konveyor' -mod=mod ./cmd/velero
 
 RUN mkdir /go/src/github.com/restic \
 && cd /go/src/github.com/restic \
-&& git clone https://github.com/konveyor/restic -b konveyor-dev \
+&& git clone https://github.com/konveyor/restic -b konveyor-oadp \
 && cd /go/src/github.com/restic/restic \
-&& CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' ./cmd/restic
+&& CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' -mod=mod ./cmd/restic
 
 FROM registry.access.redhat.com/ubi8-minimal
 RUN microdnf -y install nmap-ncat && microdnf clean all
