@@ -4,7 +4,7 @@ go 1.15
 
 require (
 	github.com/Azure/azure-sdk-for-go v42.0.0+incompatible
-	github.com/Azure/go-autorest/autorest v0.9.6
+	github.com/Azure/go-autorest/autorest v0.11.1
 	github.com/Azure/go-autorest/autorest/azure/auth v0.4.2
 	github.com/Azure/go-autorest/autorest/to v0.3.0
 	github.com/Azure/go-autorest/autorest/validation v0.2.0 // indirect
@@ -14,7 +14,7 @@ require (
 	github.com/fatih/color v1.10.0
 	github.com/gobwas/glob v0.2.3
 	github.com/gofrs/uuid v3.2.0+incompatible
-	github.com/golang/protobuf v1.4.2
+	github.com/golang/protobuf v1.4.3
 	github.com/google/uuid v1.1.2
 	github.com/hashicorp/go-hclog v0.0.0-20180709165350-ff2cf002a8dd
 	github.com/hashicorp/go-plugin v0.0.0-20190610192547-a1bc61569a26
@@ -29,21 +29,17 @@ require (
 	github.com/spf13/afero v1.2.2
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.5.1
+	github.com/stretchr/testify v1.6.1
 	golang.org/x/mod v0.3.0
 	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
-	google.golang.org/genproto v0.0.0-20200731012542-8145dea6a485 // indirect
 	google.golang.org/grpc v1.31.0
-	google.golang.org/protobuf v1.25.0 // indirect
-	k8s.io/api v0.19.12
-	k8s.io/apiextensions-apiserver v0.19.12
-	k8s.io/apimachinery v0.19.12
-	k8s.io/cli-runtime v0.19.12
-	k8s.io/client-go v0.19.12
+	k8s.io/api v0.20.9
+	k8s.io/apiextensions-apiserver v0.20.9
+	k8s.io/apimachinery v0.20.9
+	k8s.io/cli-runtime v0.20.9
+	k8s.io/client-go v0.20.9
 	k8s.io/klog v1.0.0
-	k8s.io/klog/v2 v2.3.0 // indirect
-	k8s.io/kube-aggregator v0.19.12
-	k8s.io/utils v0.0.0-20201005171033-6301aaf42dc7 // indirect
+	k8s.io/kube-aggregator v0.20.9
 	sigs.k8s.io/cluster-api v0.3.11-0.20210106212952-b6c1b5b3db3d
 	sigs.k8s.io/controller-runtime v0.7.1-0.20201215171748-096b2e07c091
 )
