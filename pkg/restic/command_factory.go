@@ -47,20 +47,14 @@ func backupTagFlags(tags map[string]string) []string {
 }
 
 // RestoreCommand returns a Command for running a restic restore.
-func RestoreCommand(repoIdentifier, passwordFile, snapshotID, target string, verify bool) *Command {
-	extraFlags := []string{"--target=.", "--delete"}
-	if verify {
-		extraFlags = append(extraFlags, "--verify")
-	} else {
-		extraFlags = append(extraFlags, "--skip-unchanged")
-	}
+func RestoreCommand(repoIdentifier, passwordFile, snapshotID, target string) *Command {
 	return &Command{
 		Command:        "restore",
 		RepoIdentifier: repoIdentifier,
 		PasswordFile:   passwordFile,
 		Dir:            target,
 		Args:           []string{snapshotID},
-		ExtraFlags:     extraFlags,
+		ExtraFlags:     []string{"--target=.", "--skip-unchanged", "--delete"},
 	}
 }
 
