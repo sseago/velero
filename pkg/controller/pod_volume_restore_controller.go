@@ -452,9 +452,12 @@ func (c *podVolumeRestoreController) processRestoreErrors(req *velerov1api.PodVo
 		}
 	}
 	if _, err := c.patchPodVolumeRestore(req, func(r *velerov1api.PodVolumeRestore) {
-		r.Status.Errors = nErrors
-		r.Status.VerifyErrors = nVerifyErrors
-		r.Status.ResticPod = os.Getenv("POD_NAME")
+		if r.Annotations == nil {
+			r.Annotations = make(map[string]string)
+		}
+		r.Annotations[restic.PVRErrorsAnnotation] = strconv.FormatInt(int64(nErrors), 10)
+		r.Annotations[restic.PVRVerifyErrorsAnnotation] = strconv.FormatInt(int64(nVerifyErrors), 10)
+		r.Annotations[restic.PVRResticPodAnnotation] = os.Getenv("POD_NAME")
 	}); err != nil {
 		return err
 	}
