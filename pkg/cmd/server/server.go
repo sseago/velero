@@ -646,6 +646,7 @@ func (s *server) runControllers(defaultVolumeSnapshotLocations map[string]string
 			csiVSLister,
 			csiVSCLister,
 			backupStoreGetter,
+			s.credentialFileStore,
 		)
 
 		return controllerRunInfo{
@@ -726,6 +727,7 @@ func (s *server) runControllers(defaultVolumeSnapshotLocations map[string]string
 			s.logger,
 			podexec.NewPodCommandExecutor(s.kubeClientConfig, s.kubeClient.CoreV1().RESTClient()),
 			s.kubeClient.CoreV1().RESTClient(),
+			s.credentialFileStore,
 		)
 		cmd.CheckError(err)
 

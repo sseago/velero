@@ -41,6 +41,7 @@ import (
 	snapshotv1beta1api "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1beta1"
 	snapshotv1beta1listers "github.com/kubernetes-csi/external-snapshotter/client/v4/listers/volumesnapshot/v1beta1"
 
+	"github.com/vmware-tanzu/velero/internal/credentials"
 	"github.com/vmware-tanzu/velero/internal/storage"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	pkgbackup "github.com/vmware-tanzu/velero/pkg/backup"
@@ -85,6 +86,7 @@ type backupController struct {
 	formatFlag                  logging.Format
 	volumeSnapshotLister        snapshotv1beta1listers.VolumeSnapshotLister
 	volumeSnapshotContentLister snapshotv1beta1listers.VolumeSnapshotContentLister
+	credentialFileStore         credentials.FileStore
 }
 
 func NewBackupController(
@@ -107,6 +109,7 @@ func NewBackupController(
 	volumeSnapshotLister snapshotv1beta1listers.VolumeSnapshotLister,
 	volumeSnapshotContentLister snapshotv1beta1listers.VolumeSnapshotContentLister,
 	backupStoreGetter persistence.ObjectBackupStoreGetter,
+	credentialStore credentials.FileStore,
 ) Interface {
 	c := &backupController{
 		genericController:           newGenericController(Backup, logger),
@@ -129,6 +132,7 @@ func NewBackupController(
 		volumeSnapshotLister:        volumeSnapshotLister,
 		volumeSnapshotContentLister: volumeSnapshotContentLister,
 		backupStoreGetter:           backupStoreGetter,
+		credentialFileStore:         credentialStore,
 	}
 
 	c.syncHandler = c.processBackup
@@ -523,6 +527,15 @@ func (c *backupController) validateAndGetSnapshotLocations(backup *velerov1api.B
 
 	if len(errors) > 0 {
 		return nil, errors
+	}
+
+	// add credential to config for each location
+	for _, location := range providerLocations {
+		err = volume.UpdateVolumeSnapshotLocationWithCredentialConfig(location, c.credentialFileStore, c.logger)
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("error adding credentials to volume snapshot location named %s: %v", location.Name, err))
+			continue
+		}
 	}
 
 	return providerLocations, nil
