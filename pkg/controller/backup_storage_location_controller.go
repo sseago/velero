@@ -122,7 +122,7 @@ func (r *BackupStorageLocationReconciler) Reconcile(ctx context.Context, req ctr
 			}
 		}()
 
-		backupStore, err := r.BackupStoreGetter.Get(&location, pluginManager, log)
+		backupStore, err := r.BackupStoreGetter.Get(location.DeepCopy(), pluginManager, log)
 		if err != nil {
 			log.WithError(err).Error("Error getting a backup store")
 			return
