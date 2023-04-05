@@ -530,6 +530,7 @@ var defaultRestorePriorities = restore.Priorities{
 		"customresourcedefinitions",
 		"namespaces",
 		"storageclasses",
+		"volumesnapshotbackups.datamover.oadp.openshift.io",
 		"volumesnapshotclass.snapshot.storage.k8s.io",
 		"volumesnapshotcontents.snapshot.storage.k8s.io",
 		"volumesnapshots.snapshot.storage.k8s.io",
