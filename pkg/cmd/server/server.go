@@ -808,6 +808,7 @@ func (s *server) runControllers(defaultVolumeSnapshotLocations map[string]string
 		)
 		cmd.CheckError(err)
 		r := controller.NewBackupFinalizerReconciler(
+			s.ctx,
 			s.mgr.GetClient(),
 			clock.RealClock{},
 			backupper,
@@ -816,6 +817,8 @@ func (s *server) runControllers(defaultVolumeSnapshotLocations map[string]string
 			backupStoreGetter,
 			s.logger,
 			s.metrics,
+			s.csiSnapshotLister,
+			s.csiSnapshotClient,
 		)
 		if err := r.SetupWithManager(s.mgr); err != nil {
 			s.logger.Fatal(err, "unable to create controller", "controller", controller.BackupFinalizer)
