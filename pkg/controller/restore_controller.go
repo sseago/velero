@@ -576,7 +576,7 @@ func (r *restoreReconciler) runValidatedRestore(restore *api.Restore, info backu
 			r.logger.Debug("Restore completed")
 			restore.Status.Phase = api.RestorePhaseCompleted
 			r.metrics.RegisterRestoreSuccess(restore.Spec.ScheduleName)
-			if err := datamover.CleanupRestoreVSRs(r.logger); err != nil {
+			if err := datamover.CleanupRestoreVSRs(restore, r.logger); err != nil {
 				r.logger.WithError(err).Error("Error removing VSRs after completed restore")
 			}
 		}
