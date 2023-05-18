@@ -40,6 +40,7 @@ import (
 
 	"github.com/vmware-tanzu/velero/internal/hook"
 	api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	"github.com/vmware-tanzu/velero/pkg/datamover"
 	"github.com/vmware-tanzu/velero/pkg/itemoperation"
 	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/metrics"
@@ -575,6 +576,9 @@ func (r *restoreReconciler) runValidatedRestore(restore *api.Restore, info backu
 			r.logger.Debug("Restore completed")
 			restore.Status.Phase = api.RestorePhaseCompleted
 			r.metrics.RegisterRestoreSuccess(restore.Spec.ScheduleName)
+			if err := datamover.DeleteVSRsIfComplete(restore.Name, r.logger); err != nil {
+				r.logger.WithError(err).Error("Error removing VSRs after completed restore")
+			}
 		}
 	}
 	return nil
