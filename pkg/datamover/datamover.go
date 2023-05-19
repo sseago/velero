@@ -123,33 +123,6 @@ func CheckIfVolumeSnapshotBackupsAreComplete(ctx context.Context, volumesnapshot
 	return eg.Wait()
 }
 
-func CleanupRestoreVSRs(log logrus.FieldLogger) error {
-	restoreList := velerov1api.RestoreList{}
-	client, err := GetVolumeSnapMoverClient()
-	if err != nil {
-		return err
-	}
-
-	err = client.List(context.TODO(), &restoreList, &kbclient.ListOptions{})
-	if err != nil {
-		log.Errorf(err.Error())
-		return err
-	}
-
-	for _, restore := range restoreList.Items {
-		if restore.Status.Phase == velerov1api.RestorePhaseCompleted {
-			log.Infof("Cleaning up VSRs from completed restore %s/%s", restore.Namespace, restore.Name)
-			if err := DeleteVSRsIfComplete(restore.Name, log); err != nil {
-				return err
-			}
-		} else {
-			log.Infof("Ignoring in-progress restore %s/%s", restore.Namespace, restore.Name)
-		}
-	}
-
-	return nil
-}
-
 func DeleteVSRsIfComplete(restoreName string, log logrus.FieldLogger) error {
 	volumeSnapMoverClient, err := GetVolumeSnapMoverClient()
 	if err != nil {
