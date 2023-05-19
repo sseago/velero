@@ -122,3 +122,89 @@ func CheckIfVolumeSnapshotBackupsAreComplete(ctx context.Context, volumesnapshot
 	}
 	return eg.Wait()
 }
+
+func DeleteVSRsIfComplete(restoreName string, log logrus.FieldLogger) error {
+	volumeSnapMoverClient, err := GetVolumeSnapMoverClient()
+	if err != nil {
+		log.Errorf(err.Error())
+		return err
+	}
+
+	VSRList := snapmoverv1alpha1.VolumeSnapshotRestoreList{}
+	VSRListOptions := kbclient.MatchingLabels(map[string]string{
+		velerov1api.RestoreNameLabel: restoreName,
+	})
+
+	err = volumeSnapMoverClient.List(context.TODO(), &VSRList, VSRListOptions)
+	if err != nil {
+		log.Errorf(err.Error())
+		return err
+	}
+
+	if len(VSRList.Items) > 0 {
+		err = CheckIfVolumeSnapshotRestoresAreComplete(context.Background(), VSRList, log)
+		if err != nil {
+			log.Errorf("failed to wait for VolumeSnapshotRestores to be completed: %s", err.Error())
+			return err
+		}
+
+		// Now Delete the VSRs
+		for _, vsr := range VSRList.Items {
+			log.Infof("Cleaning up completed VSR: %s/%s", vsr.Namespace, vsr.Name)
+			err := volumeSnapMoverClient.Delete(context.Background(), &vsr)
+			if err != nil {
+				log.Warnf("failed to delete completed VolumeSnapshotRestore: %s", err.Error())
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func CheckIfVolumeSnapshotRestoresAreComplete(ctx context.Context, volumesnapshotrestores snapmoverv1alpha1.VolumeSnapshotRestoreList, log logrus.FieldLogger) error {
+	eg, _ := errgroup.WithContext(ctx)
+	// default timeout value is 10
+	timeoutValue := "10m"
+	timeout, err := time.ParseDuration(timeoutValue)
+	if err != nil {
+		return errors.Wrapf(err, "error parsing the datamover timout")
+	}
+	interval := 5 * time.Second
+
+	volumeSnapMoverClient, err := GetVolumeSnapMoverClient()
+	if err != nil {
+		return err
+	}
+
+	for _, vsr := range volumesnapshotrestores.Items {
+		volumesnapshotrestore := vsr
+		eg.Go(func() error {
+			err := wait.PollImmediate(interval, timeout, func() (bool, error) {
+				currentVSR := snapmoverv1alpha1.VolumeSnapshotRestore{}
+				err := volumeSnapMoverClient.Get(ctx, kbclient.ObjectKey{Namespace: volumesnapshotrestore.Namespace, Name: volumesnapshotrestore.Name}, &currentVSR)
+				if err != nil {
+					return false, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshotrestore %s/%s", volumesnapshotrestore.Namespace, volumesnapshotrestore.Name))
+				}
+				// check for a failed VSR
+				for _, cond := range currentVSR.Status.Conditions {
+					if cond.Status == metav1.ConditionFalse && cond.Reason == ReconciledReasonError && cond.Type == ConditionReconciled && (currentVSR.Status.Phase == SnapMoverBackupPhaseFailed || currentVSR.Status.Phase == SnapMoverBackupPhasePartiallyFailed) {
+						return false, errors.Errorf("volumesnapshotrestore %s has failed status", currentVSR.Name)
+					}
+				}
+
+				if len(currentVSR.Status.Phase) == 0 || currentVSR.Status.Phase != snapmoverv1alpha1.SnapMoverRestorePhaseCompleted {
+					log.Infof("Waiting for volumesnapshotrestore status.phase to change from %s to complete %s/%s. Retrying in %ds", currentVSR.Status.Phase, volumesnapshotrestore.Namespace, volumesnapshotrestore.Name, interval/time.Second)
+					return false, nil
+				}
+
+				log.Infof("volumesnapshotrestore %s completed", volumesnapshotrestore.Name)
+				return true, nil
+			})
+			if err == wait.ErrWaitTimeout {
+				log.Errorf("Timed out awaiting reconciliation of volumesnapshotrestore %s/%s", volumesnapshotrestore.Namespace, volumesnapshotrestore.Name)
+			}
+			return err
+		})
+	}
+	return eg.Wait()
+}

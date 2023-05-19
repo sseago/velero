@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	"github.com/vmware-tanzu/velero/pkg/datamover"
 	"github.com/vmware-tanzu/velero/pkg/itemoperation"
 	"github.com/vmware-tanzu/velero/pkg/itemoperationmap"
 	"github.com/vmware-tanzu/velero/pkg/metrics"
@@ -194,6 +195,9 @@ func (r *restoreOperationsReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			log.Infof("Marking restore %s FinalizingPartiallyFailed", restore.Name)
 			restore.Status.Phase = velerov1api.RestorePhasePartiallyFailed
 			r.metrics.RegisterRestorePartialFailure(restore.Spec.ScheduleName)
+		}
+		if err = datamover.DeleteVSRsIfComplete(restore.Name, log); err != nil {
+			return ctrl.Result{}, errors.Wrap(err, "error cleaning up after restore")
 		}
 	}
 	err = r.updateRestoreAndOperationsJSON(ctx, original, restore, backupStore, operations, changes, completionChanges)
