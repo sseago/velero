@@ -567,6 +567,9 @@ func (r *restoreReconciler) runValidatedRestore(restore *api.Restore, info backu
 			r.logger.Debug("Restore partially failed")
 			restore.Status.Phase = api.RestorePhasePartiallyFailed
 			r.metrics.RegisterRestorePartialFailure(restore.Spec.ScheduleName)
+			if err := datamover.DeleteVSRsIfComplete(restore.Name, r.logger); err != nil {
+				r.logger.WithError(err).Error("Error removing VSRs after partially failed restore")
+			}
 		}
 	} else {
 		if inProgressOperations {
