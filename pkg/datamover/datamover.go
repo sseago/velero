@@ -9,7 +9,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	kbclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -124,27 +123,9 @@ func CheckIfVolumeSnapshotBackupsAreComplete(ctx context.Context, volumesnapshot
 	return eg.Wait()
 }
 
-func GetRestoreClient() (kbclient.Client, error) {
-	client, err := kbclient.New(config.GetConfigOrDie(), kbclient.Options{})
-	if err != nil {
-		return nil, err
-	}
-	err = velerov1api.AddToScheme(client.Scheme())
-	if err != nil {
-		return nil, err
-	}
-
-	return client, err
-}
-
-func CleanupRestoreVSRs(currentRestore *velerov1api.Restore, log logrus.FieldLogger) error {
-	if err := DeleteVSRsIfComplete(currentRestore.Name, log); err != nil {
-		return err
-	}
-
-	// Check other completed Restores for VSRs that can be cleaned up
+func CleanupRestoreVSRs(log logrus.FieldLogger) error {
 	restoreList := velerov1api.RestoreList{}
-	client, err := GetRestoreClient()
+	client, err := GetVolumeSnapMoverClient()
 	if err != nil {
 		return err
 	}
@@ -156,9 +137,6 @@ func CleanupRestoreVSRs(currentRestore *velerov1api.Restore, log logrus.FieldLog
 	}
 
 	for _, restore := range restoreList.Items {
-		if restore.UID == currentRestore.UID {
-			continue
-		}
 		if restore.Status.Phase == velerov1api.RestorePhaseCompleted {
 			log.Infof("Cleaning up VSRs from completed restore %s/%s", restore.Namespace, restore.Name)
 			if err := DeleteVSRsIfComplete(restore.Name, log); err != nil {
@@ -166,43 +144,6 @@ func CleanupRestoreVSRs(currentRestore *velerov1api.Restore, log logrus.FieldLog
 			}
 		} else {
 			log.Infof("Ignoring in-progress restore %s/%s", restore.Namespace, restore.Name)
-		}
-	}
-
-	// Check for dangling completed VSRs that belong to Restores that no longer exist
-	VSRList := snapmoverv1alpha1.VolumeSnapshotRestoreList{}
-	volumeSnapMoverClient, err := GetVolumeSnapMoverClient()
-	if err != nil {
-		return err
-	}
-
-	err = volumeSnapMoverClient.List(context.TODO(), &VSRList)
-	if err != nil {
-		log.Errorf(err.Error())
-		return err
-	}
-
-	for _, vsr := range VSRList.Items {
-		if vsr.Status.Phase != snapmoverv1alpha1.SnapMoverRestorePhaseCompleted {
-			continue
-		}
-
-		restoreName, present := vsr.Labels[velerov1api.RestoreNameLabel]
-		if !present || restoreName == "" {
-			continue
-		}
-
-		restore := velerov1api.Restore{}
-		err = client.Get(context.TODO(), kbclient.ObjectKey{Namespace: vsr.Namespace, Name: restoreName}, &restore)
-		if !apierrors.IsNotFound(err) {
-			continue
-		}
-
-		log.Infof("Removing dangling VSR %s/%s", vsr.Namespace, vsr.Name)
-		err := volumeSnapMoverClient.Delete(context.Background(), &vsr)
-		if err != nil {
-			log.Warnf("failed to delete VolumeSnapshotRestore: %s", err.Error())
-			return err
 		}
 	}
 
