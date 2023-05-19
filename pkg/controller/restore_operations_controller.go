@@ -187,20 +187,17 @@ func (r *restoreOperationsReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		if len(operations.ErrsSinceUpdate) > 0 {
 			restore.Status.Phase = velerov1api.RestorePhaseWaitingForPluginOperationsPartiallyFailed
 		}
-		phase := " "
 		if restore.Status.Phase == velerov1api.RestorePhaseWaitingForPluginOperations {
 			log.Infof("Marking restore %s completed", restore.Name)
 			restore.Status.Phase = velerov1api.RestorePhaseCompleted
 			r.metrics.RegisterRestoreSuccess(restore.Spec.ScheduleName)
-			phase = " completed "
 		} else {
 			log.Infof("Marking restore %s FinalizingPartiallyFailed", restore.Name)
 			restore.Status.Phase = velerov1api.RestorePhasePartiallyFailed
 			r.metrics.RegisterRestorePartialFailure(restore.Spec.ScheduleName)
-			phase = " partially failed "
 		}
 		if err = datamover.DeleteVSRsIfComplete(restore.Name, log); err != nil {
-			return ctrl.Result{}, errors.Wrapf(err, "error cleaning up after%srestore", phase)
+			return ctrl.Result{}, errors.Wrap(err, "error cleaning up after restore")
 		}
 	}
 	err = r.updateRestoreAndOperationsJSON(ctx, original, restore, backupStore, operations, changes, completionChanges)
