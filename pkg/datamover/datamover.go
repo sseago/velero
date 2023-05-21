@@ -123,11 +123,14 @@ func CheckIfVolumeSnapshotBackupsAreComplete(ctx context.Context, volumesnapshot
 	return eg.Wait()
 }
 
-func DeleteVSRsIfComplete(restoreName string, log logrus.FieldLogger) error {
-	volumeSnapMoverClient, err := GetVolumeSnapMoverClient()
-	if err != nil {
-		log.Errorf(err.Error())
-		return err
+func DeleteVSRsIfComplete(restoreName string, log logrus.FieldLogger, volumeSnapMoverClient kbclient.Client) error {
+	if volumeSnapMoverClient == nil {
+		var err error
+		volumeSnapMoverClient, err = GetVolumeSnapMoverClient()
+		if err != nil {
+			log.Errorf(err.Error())
+			return err
+		}
 	}
 
 	VSRList := snapmoverv1alpha1.VolumeSnapshotRestoreList{}
@@ -135,7 +138,7 @@ func DeleteVSRsIfComplete(restoreName string, log logrus.FieldLogger) error {
 		velerov1api.RestoreNameLabel: restoreName,
 	})
 
-	err = volumeSnapMoverClient.List(context.TODO(), &VSRList, VSRListOptions)
+	err := volumeSnapMoverClient.List(context.TODO(), &VSRList, VSRListOptions)
 	if err != nil {
 		log.Errorf(err.Error())
 		return err

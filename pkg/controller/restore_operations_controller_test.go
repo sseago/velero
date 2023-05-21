@@ -64,6 +64,7 @@ func mockRestoreOperationsReconciler(fakeClient kbclient.Client, fakeClock *test
 		itemoperationmap.NewRestoreItemOperationsMap(),
 	)
 	abor.clock = fakeClock
+	abor.vsmClient = fakeClient
 	return abor
 }
 
