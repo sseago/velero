@@ -53,6 +53,7 @@ type restoreOperationsReconciler struct {
 	newPluginManager  func(logger logrus.FieldLogger) clientmgmt.Manager
 	backupStoreGetter persistence.ObjectBackupStoreGetter
 	metrics           *metrics.ServerMetrics
+	vsmClient         client.Client
 }
 
 func NewRestoreOperationsReconciler(
@@ -196,7 +197,7 @@ func (r *restoreOperationsReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			restore.Status.Phase = velerov1api.RestorePhasePartiallyFailed
 			r.metrics.RegisterRestorePartialFailure(restore.Spec.ScheduleName)
 		}
-		if err = datamover.DeleteVSRsIfComplete(restore.Name, log); err != nil {
+		if err = datamover.DeleteVSRsIfComplete(restore.Name, log, r.vsmClient); err != nil {
 			return ctrl.Result{}, errors.Wrap(err, "error cleaning up after restore")
 		}
 	}
