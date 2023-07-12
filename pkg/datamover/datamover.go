@@ -100,10 +100,9 @@ func CheckIfVolumeSnapshotBackupsAreComplete(ctx context.Context, volumesnapshot
 					return false, errors.Wrapf(err, fmt.Sprintf("failed to get volumesnapshotbackup %s/%s", volumesnapshotbackup.Namespace, volumesnapshotbackup.Name))
 				}
 				// check for a failed VSB
-				for _, cond := range currentVSB.Status.Conditions {
-					if cond.Status == metav1.ConditionFalse && cond.Reason == ReconciledReasonError && cond.Type == ConditionReconciled && (currentVSB.Status.Phase == SnapMoverBackupPhaseFailed || currentVSB.Status.Phase == SnapMoverBackupPhasePartiallyFailed) {
-						return false, errors.Errorf("volumesnapshotbackup %s has failed status", currentVSB.Name)
-					}
+				if currentVSB.Status.Phase == SnapMoverBackupPhaseFailed ||
+					currentVSB.Status.Phase == SnapMoverBackupPhasePartiallyFailed {
+					return false, errors.Errorf("volumesnapshotbackup %s has failed status", currentVSB.Name)
 				}
 
 				if len(currentVSB.Status.Phase) == 0 || currentVSB.Status.Phase != snapmoverv1alpha1.SnapMoverBackupPhaseCompleted {
