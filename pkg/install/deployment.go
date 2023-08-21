@@ -46,6 +46,7 @@ type podTemplateConfig struct {
 	defaultVolumesToFsBackup        bool
 	serviceAccountName              string
 	uploaderType                    string
+	useInformerCacheForGet          bool
 }
 
 func WithImage(image string) podTemplateOption {
@@ -136,6 +137,12 @@ func WithDefaultVolumesToFsBackup() podTemplateOption {
 	}
 }
 
+func WithUseInformerCacheForGet(useCache bool) podTemplateOption {
+	return func(c *podTemplateConfig) {
+		c.useInformerCacheForGet = useCache
+	}
+}
+
 func WithServiceAccountName(sa string) podTemplateOption {
 	return func(c *podTemplateConfig) {
 		c.serviceAccountName = sa
@@ -145,7 +152,8 @@ func WithServiceAccountName(sa string) podTemplateOption {
 func Deployment(namespace string, opts ...podTemplateOption) *appsv1.Deployment {
 	// TODO: Add support for server args
 	c := &podTemplateConfig{
-		image: velero.DefaultVeleroImage(),
+		image:                  velero.DefaultVeleroImage(),
+		useInformerCacheForGet: true,
 	}
 
 	for _, opt := range opts {
@@ -165,6 +173,11 @@ func Deployment(namespace string, opts ...podTemplateOption) *appsv1.Deployment 
 
 	if c.defaultVolumesToFsBackup {
 		args = append(args, "--default-volumes-to-fs-backup=true")
+	}
+
+	// default is true, so set if false
+	if !c.useInformerCacheForGet {
+		args = append(args, "--use-informer-cache-for-get=false")
 	}
 
 	if len(c.uploaderType) > 0 {

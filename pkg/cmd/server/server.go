@@ -135,6 +135,7 @@ type serverConfig struct {
 	defaultVolumesToFsBackup                                                bool
 	uploaderType                                                            string
 	maxConcurrentK8SConnections                                             int
+	useInformerCacheForGet                                                  bool
 }
 
 func NewCommand(f client.Factory) *cobra.Command {
@@ -163,6 +164,7 @@ func NewCommand(f client.Factory) *cobra.Command {
 			defaultVolumesToFsBackup:       podvolume.DefaultVolumesToFsBackup,
 			uploaderType:                   uploader.ResticType,
 			maxConcurrentK8SConnections:    defaultMaxConcurrentK8SConnections,
+			useInformerCacheForGet:         true,
 		}
 	)
 
@@ -233,6 +235,7 @@ func NewCommand(f client.Factory) *cobra.Command {
 	command.Flags().DurationVar(&config.defaultItemOperationTimeout, "default-item-operation-timeout", config.defaultItemOperationTimeout, "How long to wait on asynchronous BackupItemActions and RestoreItemActions to complete before timing out. Default is 4 hours")
 	command.Flags().DurationVar(&config.resourceTimeout, "resource-timeout", config.resourceTimeout, "How long to wait for resource processes which are not covered by other specific timeout parameters. Default is 10 minutes.")
 	command.Flags().IntVar(&config.maxConcurrentK8SConnections, "max-concurrent-k8s-connections", config.maxConcurrentK8SConnections, "Max concurrent connections number that Velero can create with kube-apiserver. Default is 30.")
+	command.Flags().BoolVar(&config.useInformerCacheForGet, "use-informer-cache-for-get", config.useInformerCacheForGet, "Use informer cache for Get calls on restore. This will speed up restore in cases where there are backup resources which already exist in the cluster, but for very large clusters this will increase velero memory usage. Default is true")
 
 	return command
 }
@@ -933,6 +936,7 @@ func (s *server) runControllers(defaultVolumeSnapshotLocations map[string]string
 			s.metrics,
 			s.config.formatFlag.Parse(),
 			s.config.defaultItemOperationTimeout,
+			s.config.useInformerCacheForGet,
 		)
 
 		if err = r.SetupWithManager(s.mgr); err != nil {
