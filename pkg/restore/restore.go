@@ -1073,22 +1073,17 @@ func (ctx *restoreContext) getResource(groupResource schema.GroupResource, obj *
 	lister := ctx.getResourceLister(groupResource, obj, namespace)
 	var (
 		err        error
-		clusterObj runtime.Object
+		clusterObj *unstructured.Unstructured
 	)
 	if retriable == nil {
-		clusterObj, err = lister.Get(name)
+		clusterObj, err = client.GetFuncForCacheLister(lister)(name)
 	} else {
-		clusterObj, err = client.GetRetriableWithCacheLister(lister, name, retriable)
+		clusterObj, err = client.GetRetriable(client.GetFuncForCacheLister(lister), name, retriable)
 	}
 	if err != nil {
 		return nil, errors.Wrapf(err, "error getting resource from lister for %s, %s/%s", groupResource, namespace, name)
 	}
-	u, ok := clusterObj.(*unstructured.Unstructured)
-	if !ok {
-		ctx.log.WithError(errors.WithStack(fmt.Errorf("expected *unstructured.Unstructured but got %T", u))).Error("unable to understand entry returned from client")
-		return nil, fmt.Errorf("expected *unstructured.Unstructured but got %T", u)
-	}
-	return u, nil
+	return clusterObj, nil
 }
 
 func (ctx *restoreContext) restoreItem(obj *unstructured.Unstructured, groupResource schema.GroupResource, namespace string) (results.Result, results.Result, bool) {
@@ -1540,7 +1535,7 @@ func (ctx *restoreContext) restoreItem(obj *unstructured.Unstructured, groupReso
 		if !ctx.disableInformerCache {
 			fromCluster, err = ctx.getResource(groupResource, obj, namespace, name, apierrors.IsNotFound)
 		} else {
-			fromCluster, err = client.GetRetriableWithDynamicClient(resourceClient, name, metav1.GetOptions{}, apierrors.IsNotFound)
+			fromCluster, err = client.GetRetriable(client.GetFuncForDynamicClient(resourceClient, metav1.GetOptions{}), name, apierrors.IsNotFound)
 		}
 		if err != nil && isAlreadyExistsError {
 			ctx.log.Errorf("Error retrieving in-cluster version of %s: %v", kube.NamespaceAndName(obj), err)

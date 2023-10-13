@@ -67,7 +67,7 @@ func TestGetRetriableWithDynamicClient(t *testing.T) {
 				return tt.want, nil
 			})
 
-			got, err := GetRetriableWithDynamicClient(dc, tt.args.name, tt.args.getOptions, tt.args.retriable)
+			got, err := GetRetriable(GetFuncForDynamicClient(dc, tt.args.getOptions), tt.args.name, tt.args.retriable)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetRetriableWithDynamicClient() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -114,7 +114,7 @@ func TestGetRetriableWithCacheLister(t *testing.T) {
 				}
 				return tt.want, nil
 			})
-			got, err := GetRetriableWithCacheLister(lister, tt.args.name, tt.args.retriable)
+			got, err := GetRetriable(GetFuncForCacheLister(lister), tt.args.name, tt.args.retriable)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetRetriableWithCacheLister() error = %v, wantErr %v", err, tt.wantErr)
 				return

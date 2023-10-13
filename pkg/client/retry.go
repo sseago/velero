@@ -18,10 +18,10 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -60,22 +60,33 @@ func CreateRetryGenerateNameWithFunc(obj kbclient.Object, createFn func() error)
 	}
 }
 
-func GetRetriableWithCacheLister(lister cache.GenericNamespaceLister, name string, retriable func(error) bool) (runtime.Object, error) {
-	var clusterObj runtime.Object
-	getFunc := func() error {
-		var err error
-		clusterObj, err = lister.Get(name)
-		return err
+type GetFunc func(name string) (*unstructured.Unstructured, error)
+
+func GetFuncForCacheLister(lister cache.GenericNamespaceLister) GetFunc {
+	return func(name string) (*unstructured.Unstructured, error) {
+		runtimeObj, err := lister.Get(name)
+		if err != nil {
+			return nil, err
+		}
+		u, ok := runtimeObj.(*unstructured.Unstructured)
+		if !ok {
+			return nil, fmt.Errorf("expected *unstructured.Unstructured but got %T", u)
+		}
+		return u, nil
 	}
-	err := retry.OnError(MinuteBackoff, retriable, getFunc)
-	return clusterObj, err
 }
 
-func GetRetriableWithDynamicClient(client Dynamic, name string, getOptions metav1.GetOptions, retriable func(error) bool) (*unstructured.Unstructured, error) {
+func GetFuncForDynamicClient(client Dynamic, getOptions metav1.GetOptions) GetFunc {
+	return func(name string) (*unstructured.Unstructured, error) {
+		return client.Get(name, getOptions)
+	}
+}
+
+func GetRetriable(getFuncIn GetFunc, name string, retriable func(error) bool) (*unstructured.Unstructured, error) {
 	var clusterObj *unstructured.Unstructured
 	getFunc := func() error {
 		var err error
-		clusterObj, err = client.Get(name, getOptions)
+		clusterObj, err = getFuncIn(name)
 		return err
 	}
 	err := retry.OnError(MinuteBackoff, retriable, getFunc)
