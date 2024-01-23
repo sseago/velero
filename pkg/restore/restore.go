@@ -1534,7 +1534,7 @@ func (ctx *restoreContext) restoreItem(obj *unstructured.Unstructured, groupReso
 			fromCluster, err = resourceClient.Get(name, metav1.GetOptions{})
 		}
 		if err != nil && isAlreadyExistsError {
-			ctx.log.Warnf("Unable to retrieve in-cluster version of %s: %v, object won't have restore labels", kube.NamespaceAndName(obj), err)
+			ctx.log.Warnf("Unable to retrieve in-cluster version of %s: %v, object won't be restored by velero or have restore labels, and existing resource policy is not applied", kube.NamespaceAndName(obj), err)
 			warnings.Add(namespace, err)
 			return warnings, errs, itemExists
 		}
